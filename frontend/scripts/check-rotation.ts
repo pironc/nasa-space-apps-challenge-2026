@@ -1,4 +1,4 @@
-// Self-check for src/lib/rotation.ts. Run: node frontend/scripts/check-rotation.ts
+// Self-check for src/lib/rotation.ts. Run: node frontend/scripts/check-rotation.ts [preset.json]
 // Fails if a card contradicts its own bars, proposes a thirsty crop for water, or stops responding to the data.
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
@@ -12,14 +12,24 @@ import type {
   StrategyInput,
   StressProfile,
 } from "../src/lib/analysis.ts"
-import { compareStrategies, DEFAULT_PRIORITIES } from "../src/lib/rotation.ts"
+import {
+  compareStrategies,
+  cropLabel,
+  DEFAULT_PRIORITIES,
+  rateRotation,
+} from "../src/lib/rotation.ts"
 
 const sample = JSON.parse(
   readFileSync(
-    new URL("../public/presets/kostanay-fyodorov.json", import.meta.url),
+    process.argv[2] ??
+      new URL("../public/presets/kostanay-fyodorov.json", import.meta.url),
     "utf8"
   )
 ) as FieldAnalysis
+// Sentences the analysis wrote itself (they carry NDVI to two decimals); the engine quotes them whole.
+const quoted = sample.seasons
+  .flatMap((s) => [...s.verdicts.map((v) => v.detail), s.explanation ?? ""])
+  .filter(Boolean)
 // The same field with nothing but a profile: every evidence line must drop out cleanly.
 const empty: FieldAnalysis = {
   ...sample,
@@ -123,11 +133,70 @@ for (const profile of Object.keys(PROFILES))
           if (declared === "other")
             assert.match(base.why.join(" "), /assumes wheat every year/, where)
 
-          // The labels cannot contradict the bars.
+          // The labels cannot contradict the bars: 0.05 clear on the soil bar, or the card says it found nothing.
+          const soilWhy = soil.why.join(" ")
           assert.ok(
-            value(soil, "soil") > value(base, "soil"),
-            `soil card must beat the baseline on soil: ${where}`
+            value(soil, "soil") >= value(base, "soil") + 0.05 ||
+              /No option here comes out clearly above/.test(soilWhy),
+            `soil card must clear the baseline by 0.05 on soil or say it does not: ${where}`
           )
+          assert.ok(
+            soil.rotation.filter((id) => CROPS[id as CropId].residue <= 2)
+              .length <= 1,
+            `more than one thin-residue crop on the soil card: ${where}`
+          )
+          // Wheat every year already leaves as much residue as any option: the card must not promise more cover.
+          assert.equal(
+            soilWhy.includes(
+              "Your rotation already keeps residue on the soil. The gains available are nitrogen and a break from wheat diseases, not soil cover."
+            ),
+            declared !== "fwwb",
+            `soil-cover honesty line: ${where}`
+          )
+          assert.match(
+            soilWhy,
+            /Oats, wheat, wheat, barley is the one rotation measured locally: in the Barayev centre trial, Shortandy, 2018 to 2020, it gave about 27% more grain per rotation hectare than the fallow rotation\./,
+            `soil card must carry the local trial line: ${where}`
+          )
+          assert.equal(base.evidenceGrade, "Your current practice", where)
+          for (const c of [water, soil]) {
+            assert.equal(
+              c.evidenceGrade,
+              crops(c) === "barley,oats,spring_wheat,spring_wheat"
+                ? "Local rotation trial"
+                : c.rotation.some((id) =>
+                      ["millet", "sweet_clover"].includes(id)
+                    )
+                  ? "Judgement"
+                  : "Crops trialled locally, rotation not",
+              `evidence grade on ${c.kind}: ${where}`
+            )
+            assert.match(
+              c.why.join(" "),
+              /to discuss with your agronomist/,
+              `${c.kind} card must be an option to discuss: ${where}`
+            )
+            // Carry-over and return intervals are specific to the crops on the card.
+            const review = c.localReview.join(" ")
+            const sprayed = c.rotation.filter(
+              (id, i) =>
+                ["pulse", "oilseed"].includes(CROPS[id as CropId].group) &&
+                CROPS[c.rotation.at(i - 1) as CropId].group.startsWith("cereal")
+            )
+            for (const id of sprayed)
+              assert.ok(
+                review.includes("check which herbicides were used") &&
+                  review.includes(`can injure ${CROPS[id as CropId].label}`),
+                `no herbicide carry-over line for ${id} on ${c.kind}: ${where}`
+              )
+            assert.equal(
+              review.includes(
+                "Flax every 4 years is shorter than the usual 5-year gap"
+              ),
+              c.rotation.includes("flax"),
+              `flax return interval on ${c.kind}: ${where}`
+            )
+          }
           assert.ok(
             !soil.rotation.includes("fallow"),
             `soil card must not contain bare fallow: ${where}`
@@ -173,16 +242,61 @@ for (const profile of Object.keys(PROFILES))
                 list.length <= 4,
                 `${name} has more than 4 lines on ${c.kind}: ${where}`
               )
-            const text = [
-              c.rotationLabel,
-              c.closeCall ?? "",
-              ...c.indicators.map((i) => i.label),
-              ...Object.values(lists).flat(),
-            ].join("\n")
+            const text = quoted.reduce(
+              (t, q) => t.replaceAll(q, "(quoted)"),
+              [
+                c.rotationLabel,
+                c.evidenceGrade,
+                c.closeCall ?? "",
+                ...c.indicators.map((i) => i.label),
+                ...Object.values(lists).flat(),
+              ].join("\n")
+            )
             assert.doesNotMatch(
               text,
               /NaN|undefined|null|Infinity|\d\.\d{2,}|leaf| {2}|, \.| ,/i,
               `bad text on ${c.kind}: ${where}`
+            )
+            // Never-say list: no verdict on causes, no advice, no money result.
+            assert.doesNotMatch(
+              text,
+              /caused|management problem|monoculture|you should|recommend|profit|income|LOW_CANOPY|canopy was drier/i,
+              `forbidden wording on ${c.kind}: ${where}`
+            )
+            assert.ok(
+              value(c, "pestBreak") <= 0.8,
+              `disease break above its 0.8 cap on ${c.kind}: ${where}`
+            )
+            if (
+              c.rotation.filter((id) =>
+                [
+                  "field_pea",
+                  "lentil",
+                  "chickpea",
+                  "rapeseed",
+                  "sunflower",
+                ].includes(id)
+              ).length > 1
+            ) {
+              assert.ok(
+                value(c, "pestBreak") < 0.7,
+                `two white-mould hosts must not score high on ${c.kind}: ${where}`
+              )
+              assert.match(c.localReview.join(" "), /Sclerotinia/, where)
+            }
+            assert.deepEqual(
+              c.indicators.slice(2).map((i) => i.label),
+              [
+                "Break from wheat diseases and weeds",
+                "Market access",
+                "Relative output (no unit)",
+              ],
+              where
+            )
+            assert.match(
+              c.gaps.join(" "),
+              /relative ratings with no unit.*does not replace scouting/,
+              `${c.kind} must say the bars have no unit and do not replace scouting: ${where}`
             )
             for (const i of c.indicators) {
               assert.ok(
@@ -247,6 +361,11 @@ const pick = (
   drier: number
 ) => run(profile, declared, pr, drier)
 const profiles = Object.keys(PROFILES)
+/** One bar of any rotation, straight from the scorer. */
+const bar = (rot: string[], key: string, profile = "moderate") =>
+  rateRotation(rot, { ...PROFILES[profile], years: sample.profile.years }).find(
+    (i) => i.key === key
+  )!.value
 assert.ok(
   profiles.some(
     (p) =>
@@ -284,13 +403,14 @@ for (const d of ["fwwb", "wwww"] as const) {
     `soil card identical in the dry and the wet profile (${d})`
   )
 }
+// The rapeseed gate: open in a wet, cool profile, shut in the dry steppe. (At Shortandy trial yields it rarely wins a card.)
 assert.ok(
-  Object.values(PRIORITIES).some((pr) =>
-    pick(profiles[2], "wwww", pr, 0).some((c) =>
-      c.rotation.includes("rapeseed")
-    )
-  ),
-  "a wet, cool profile should allow rapeseed"
+  bar(["rapeseed", "fallow", "fallow", "fallow"], "climateFit", profiles[2]) >
+    0.5
+)
+assert.equal(
+  bar(["rapeseed", "fallow", "fallow", "fallow"], "climateFit", profiles[0]),
+  0
 )
 assert.ok(
   profiles.some(
@@ -362,6 +482,138 @@ for (const line of real.flatMap((c) => c.evidence))
         line.includes(`last ${n} seasons`),
       `"${n}" is not in the analysis: ${line}`
     )
+
+// The predecessor effect reaches every crop: barley after sunflower loses output, not only wheat.
+assert.ok(
+  bar(["sunflower", "barley", "fallow", "fallow"], "productivity") <
+    bar(["sunflower", "fallow", "barley", "fallow"], "productivity") - 0.01,
+  "barley straight after sunflower must lose output against barley after fallow"
+)
+assert.ok(
+  bar(
+    ["rapeseed", "oats", "fallow", "fallow"],
+    "productivity",
+    "wet-cool forest-steppe"
+  ) <
+    bar(
+      ["rapeseed", "fallow", "oats", "fallow"],
+      "productivity",
+      "wet-cool forest-steppe"
+    ) -
+      0.01,
+  "oats straight after rapeseed must lose output against oats after fallow"
+)
+// Local trial yields, not the national range: sunflower no longer out-weighs barley.
+assert.ok(
+  bar(["sunflower", "fallow", "fallow", "fallow"], "productivity") <
+    bar(["barley", "fallow", "fallow", "fallow"], "productivity")
+)
+// Disease break: capped at 0.8, and two white-mould hosts two years apart never score high.
+for (const profile of Object.keys(PROFILES)) {
+  assert.ok(
+    bar(
+      ["field_pea", "spring_wheat", "rapeseed", "spring_wheat"],
+      "pestBreak",
+      profile
+    ) < 0.7,
+    "pea and rapeseed two years apart must not score high on the disease break"
+  )
+  for (const rot of [
+    ["lentil", "millet", "flax", "barley"],
+    ["field_pea", "spring_wheat", "oats", "spring_wheat"],
+    ["oats", "spring_wheat", "spring_wheat", "barley"],
+  ])
+    assert.ok(bar(rot, "pestBreak", profile) <= 0.8, rot.join())
+}
+assert.equal(cropLabel("field_pea"), "Pea")
+assert.equal(cropLabel("spring_wheat"), "Wheat")
+assert.equal(cropLabel("not_a_crop"), "Not a crop")
+
+// Bare and fallow seasons: the declaration wins over the curve, and unclear seasons are left out and counted.
+const season = (
+  year: number,
+  use: FieldAnalysis["seasons"][number]["use"],
+  declared: "crop" | "fallow" | null,
+  peak: number,
+  deficit?: string
+): FieldAnalysis["seasons"][number] => ({
+  year,
+  ndvi: [],
+  ndmi: [],
+  obs: [],
+  use,
+  declared,
+  peak,
+  peakDekad: null,
+  verdicts: deficit
+    ? [{ type: "VEG_DEFICIT", severity: "warning", title: "", detail: deficit }]
+    : [],
+  explanation: deficit ? `Weather line for ${year}.` : null,
+})
+const declaredField: FieldAnalysis = {
+  ...sample,
+  seasons: [
+    season(2019, "cropped", "fallow", 0.7), // declared fallow although the curve looks cropped: counts
+    season(2020, "fallow", "crop", 0.3, "Deficit line for 2020."), // declared crop although the curve looks fallow: does not count
+    season(2021, "ambiguous", null, 0.2, "Deficit line for 2021."), // unclear: left out, and never the evidence season
+    season(2022, "fallow", null, 0.25), // nothing declared: the curve decides
+    season(2023, "cropped", null, 0.8),
+    season(2024, "unknown", null, 0.5), // unclear: left out
+    season(2025, "ambiguous", "crop", 0.4, "Deficit line for 2025."), // declared, so no longer unclear
+  ],
+}
+const seen = compareStrategies({
+  analysis: declaredField,
+  declared: "fwwb",
+  priorities: DEFAULT_PRIORITIES,
+  drier: 0,
+})
+const bareLine = seen[2].evidence.join(" ")
+assert.match(
+  bareLine,
+  /Bare or fallow summers[^.]*: 2 of the 5 seasons with a clear land use \(2019, 2022\)\./
+)
+assert.match(bareLine, /Seasons left out because[^.]*: 2 \(2021, 2024\)\./)
+const greenness = seen[0].evidence.join(" ")
+assert.ok(
+  greenness.includes("2020: Deficit line for 2020. Weather line for 2020."),
+  "the lowest clear cropped season with a deficit is quoted with its weather explanation"
+)
+assert.ok(!greenness.includes("Deficit line for 2021"))
+assert.doesNotMatch(JSON.stringify(seen), /LOW_CANOPY|canopy was drier/)
+// Drought wording comes from the climate record's own drought fields.
+const droughtSeason = {
+  ...cs.at(-1)!,
+  year: 2030,
+  rainMayAugPct: 1,
+  htcRank: 2,
+  htcRankOf: 37,
+  drought: "severe" as const,
+}
+const droughtText = compareStrategies({
+  analysis: {
+    ...sample,
+    climate: {
+      ...sample.climate,
+      seasons: [...cs, droughtSeason],
+      droughtYears: [2012, 2030],
+    },
+  },
+  declared: "wwww",
+  priorities: DEFAULT_PRIORITIES,
+  drier: 0,
+})
+  .flatMap((c) => c.evidence)
+  .join(" ")
+assert.match(
+  droughtText,
+  /In 2030, the driest of the last 10 seasons.*was a severe drought: rank 2 of 37 for moisture, 1 being the driest\./
+)
+assert.match(
+  droughtText,
+  /2 of the \d+ seasons from \d+ to 2030 were a drought by this location's own weather record[^.]*: 2012, 2030\./
+)
+
 for (const c of Object.values(CROPS))
   if (c.marketNote)
     assert.match(c.marketNote, /\(as of 2025\)$|\(as of 2025\)\.$/, c.name)

@@ -23,10 +23,21 @@ export type Crop = {
   market: number
   /** Card sentence behind the market rank; date-stamped because markets move fast. */
   marketNote: string
-  /** National yield range, t/ha. null where there is no grain to weigh. */
+  /** National yield range, t/ha. null where there is no grain to weigh. The fallback when there is no local figure. */
   yieldTHa: [number, number] | null
-  /** Yield of the wheat that follows this crop, wheat after bare fallow = 1.00. */
+  /**
+   * Mean yield in Barayev centre trials near Shortandy (Akmola), t/ha, where the agronomy note gives one
+   * (docs/research/kazakhstan-agronomy/README.md; ranges are entered at their middle). Wheat is the 2018 to 2020
+   * mean after fallow; the others are 10 to 20-year means. One station: Kostanay and North Kazakhstan differ.
+   */
+  yieldLocalTHa?: number
+  /**
+   * Yield of the crop that follows this one, wheat after bare fallow = 1.00. Measured for wheat only;
+   * the rotation engine applies it to whatever follows, which is a judgement.
+   */
   nextWheat: number
+  /** Usual shortest gap before the crop returns to the same field, years. Standard agronomy, unsourced: judgement. */
+  minReturnYears?: number
   judgement: Record<
     | "waterUse"
     | "droughtTol"
@@ -97,6 +108,7 @@ export const CROPS = {
     marketNote:
       "Wheat can be sold in every district, to elevators and through the state purchase scheme, though at a low price (as of 2025).",
     yieldTHa: [0.92, 1.58],
+    yieldLocalTHa: 2.14,
     nextWheat: 0.83,
     judgement: j({ nextWheat: false }),
     source: "FAO_T6_T14; FAO56_T22; USDA_PSD; FAS_2026",
@@ -151,6 +163,7 @@ export const CROPS = {
     marketNote:
       "Oats is a small crop mostly fed on the farm, so buyers are few (as of 2025).",
     yieldTHa: [0.79, 1.71],
+    yieldLocalTHa: 2.38,
     nextWheat: 0.94,
     judgement: j({ nextWheat: false }),
     source: "FAO_T6_T14; FAO56_T22; FAOSTAT; BARAYEV_DIV; BARAYEV_POSTER",
@@ -169,6 +182,8 @@ export const CROPS = {
     marketNote:
       "Flax is an established export crop, but its price and sown area swing sharply from year to year (as of 2025).",
     yieldTHa: [0.5, 0.89],
+    yieldLocalTHa: 0.76,
+    minReturnYears: 5,
     nextWheat: 0.88,
     judgement: j(),
     source:
@@ -188,6 +203,8 @@ export const CROPS = {
     marketNote:
       "Sunflower is the largest oilseed, sold mainly to domestic crushers (as of 2025).",
     yieldTHa: [0.76, 1.46],
+    yieldLocalTHa: 0.7,
+    minReturnYears: 6,
     nextWheat: 0.75,
     judgement: j(),
     source: "FAO_T6_T14; FAO56_T22; FAOSTAT; USDA_PSD; BARAYEV_DIV",
@@ -206,6 +223,8 @@ export const CROPS = {
     marketNote:
       "Rapeseed is the fastest-growing oilseed and finds buyers readily (as of 2025).",
     yieldTHa: [0.63, 1.95],
+    yieldLocalTHa: 0.67,
+    minReturnYears: 4,
     nextWheat: 0.85,
     judgement: j(),
     source: "FAO56_T22; USDA_PSD; BARAYEV_DIV; AREA_2025",
@@ -224,6 +243,8 @@ export const CROPS = {
     marketNote:
       "Lentil sells readily, but most exports go to one country, Turkey, so the price falls when supply is high (as of 2025).",
     yieldTHa: [0.74, 1.34],
+    yieldLocalTHa: 0.96,
+    minReturnYears: 4,
     nextWheat: 0.88,
     judgement: j({ nFix: true, nextWheat: false }),
     source:
@@ -242,6 +263,8 @@ export const CROPS = {
     market: 3,
     marketNote: "Pea has a thinner network of buyers than lentil (as of 2025).",
     yieldTHa: [0.95, 1.35],
+    yieldLocalTHa: 1.49,
+    minReturnYears: 4,
     nextWheat: 0.82,
     judgement: j({ nFix: true, nextWheat: false }),
     source: "FAO_T6_T14; FAO56_T22; FAOSTAT; ALBERTA_GM; BARAYEV_DIV; FAS_2026",
@@ -260,6 +283,8 @@ export const CROPS = {
     marketNote:
       "Chickpea is a tiny crop here, with few buyers and little local seed (as of 2025).",
     yieldTHa: [0.36, 1.01],
+    yieldLocalTHa: 1.18,
+    minReturnYears: 4,
     nextWheat: 0.86,
     judgement: j({ nFix: true }),
     source: "FAO56_T22; FAOSTAT; ALBERTA_GM; BARAYEV_DIV",
