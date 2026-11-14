@@ -1,14 +1,36 @@
 import { EyeOffIcon, ScaleIcon, UserCheckIcon } from "lucide-react"
 import { useMemo, type ReactNode } from "react"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import type { FieldAnalysis, Indicator, Priorities, Strategy } from "@/lib/analysis"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import type {
+  FieldAnalysis,
+  Indicator,
+  Priorities,
+  Strategy,
+} from "@/lib/analysis"
 import { seasonHeadline } from "@/lib/data"
 import type { RotationId } from "@/lib/fields"
-import { compareStrategies, cropLabel, DEFAULT_PRIORITIES } from "@/lib/rotation"
+import {
+  compareStrategies,
+  cropLabel,
+  DEFAULT_PRIORITIES,
+} from "@/lib/rotation"
 
 const PRIORITIES: { key: keyof Priorities; label: string }[] = [
   { key: "water", label: "Save water" },
@@ -17,22 +39,47 @@ const PRIORITIES: { key: keyof Priorities; label: string }[] = [
 ]
 
 const weight = (v: number) => (v < 0.34 ? "Low" : v < 0.67 ? "Medium" : "High")
-const whatIf = (v: number) => (v === 0 ? "As recorded" : v < 0.5 ? "Somewhat" : "Markedly")
+const whatIf = (v: number) =>
+  v === 0 ? "As recorded" : v < 0.5 ? "Somewhat" : "Markedly"
 
-function Dial({ id, label, word, value, onChange }: { id: string; label: string; word?: string; value: number; onChange: (v: number) => void }) {
+function Dial({
+  id,
+  label,
+  word,
+  value,
+  onChange,
+}: {
+  id: string
+  label: string
+  word?: string
+  value: number
+  onChange: (v: number) => void
+}) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2">
         <Label htmlFor={id}>{label}</Label>
         {word && <span className="text-xs text-muted-foreground">{word}</span>}
       </div>
-      <Slider id={id} aria-label={label} min={0} max={1} step={0.05} value={[value]} onValueChange={([v]) => onChange(v)} />
+      <Slider
+        id={id}
+        aria-label={label}
+        min={0}
+        max={1}
+        step={0.05}
+        value={[value]}
+        onValueChange={([v]) => onChange(v)}
+      />
     </div>
   )
 }
 
 /** One hue for every bar: the level word carries the reading, the bar the relative size. */
-function Meter({ indicator }: { indicator: Pick<Indicator, "label" | "value"> & { level: string } }) {
+function Meter({
+  indicator,
+}: {
+  indicator: Pick<Indicator, "label" | "value"> & { level: string }
+}) {
   return (
     <div
       role="meter"
@@ -43,7 +90,10 @@ function Meter({ indicator }: { indicator: Pick<Indicator, "label" | "value"> & 
       aria-valuetext={indicator.level}
       className="h-1.5 overflow-hidden rounded-full bg-chart-1/15"
     >
-      <div className="h-full rounded-full bg-chart-1" style={{ width: `${Math.round(indicator.value * 100)}%` }} />
+      <div
+        className="h-full rounded-full bg-chart-1"
+        style={{ width: `${Math.round(indicator.value * 100)}%` }}
+      />
     </div>
   )
 }
@@ -54,11 +104,23 @@ const FIT = "Fit to your priorities"
 function fit(strategy: Strategy) {
   const value = (strategy as Partial<Strategy>).priorityFit
   return typeof value === "number" && Number.isFinite(value)
-    ? { label: FIT, value: Math.min(1, Math.max(0, value)), level: `${Math.round(Math.min(1, Math.max(0, value)) * 100)} of 100` }
+    ? {
+        label: FIT,
+        value: Math.min(1, Math.max(0, value)),
+        level: `${Math.round(Math.min(1, Math.max(0, value)) * 100)} of 100`,
+      }
     : null
 }
 
-function Points({ title, icon, items }: { title: string; icon?: ReactNode; items: string[] }) {
+function Points({
+  title,
+  icon,
+  items,
+}: {
+  title: string
+  icon?: ReactNode
+  items: string[]
+}) {
   if (items.length === 0) return null
   return (
     <section className="flex flex-col gap-1">
@@ -84,7 +146,8 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
         <CardDescription>{strategy.rotationLabel}</CardDescription>
         {strategy.evidenceGrade && (
           <p className="text-xs text-muted-foreground">
-            Evidence: <span className="text-foreground">{strategy.evidenceGrade}</span>
+            Evidence:{" "}
+            <span className="text-foreground">{strategy.evidenceGrade}</span>
           </p>
         )}
       </CardHeader>
@@ -101,7 +164,9 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
         <ol className="grid grid-cols-2 gap-1 @xs/strategy:grid-cols-4">
           {strategy.rotation.map((id, i) => (
             <li key={i} className="rounded-md border px-2 py-1 leading-tight">
-              <div className="text-[0.6875rem] text-muted-foreground">Year {i + 1}</div>
+              <div className="text-[0.6875rem] text-muted-foreground">
+                Year {i + 1}
+              </div>
               <div className="text-xs font-medium">{cropLabel(id)}</div>
             </li>
           ))}
@@ -131,8 +196,16 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
         <Points title="Benefits" items={strategy.benefits} />
         {/* The product's promise: these two are on every card, never hidden. */}
         <div className="flex flex-col gap-3 border-t pt-3">
-          <Points title="What satellites cannot see" icon={<EyeOffIcon />} items={strategy.gaps} />
-          <Points title="Needs local review" icon={<UserCheckIcon />} items={strategy.localReview} />
+          <Points
+            title="What satellites cannot see"
+            icon={<EyeOffIcon />}
+            items={strategy.gaps}
+          />
+          <Points
+            title="Needs local review"
+            icon={<UserCheckIcon />}
+            items={strategy.localReview}
+          />
         </div>
       </CardContent>
     </Card>
@@ -150,18 +223,44 @@ type Props = {
   onDrier: (v: number) => void
 }
 
-export function StrategiesTab({ analysis, year, declared, priorities, onPriorities, drier, onDrier }: Props) {
-  const strategies = useMemo(() => compareStrategies({ analysis, declared, priorities, drier }), [analysis, declared, priorities, drier])
+export function StrategiesTab({
+  analysis,
+  year,
+  declared,
+  priorities,
+  onPriorities,
+  drier,
+  onDrier,
+}: Props) {
+  const strategies = useMemo(
+    () => compareStrategies({ analysis, declared, priorities, drier }),
+    [analysis, declared, priorities, drier]
+  )
   // What the same field and what-if give at medium priorities, to say plainly whether the sliders changed a rotation.
-  const atDefault = useMemo(() => compareStrategies({ analysis, declared, priorities: DEFAULT_PRIORITIES, drier }), [analysis, declared, drier])
-  const moved = PRIORITIES.some(({ key }) => priorities[key] !== DEFAULT_PRIORITIES[key])
-  const changed = strategies.filter((s, i) => s.rotationLabel !== atDefault[i]?.rotationLabel).map((s) => s.title)
+  const atDefault = useMemo(
+    () =>
+      compareStrategies({
+        analysis,
+        declared,
+        priorities: DEFAULT_PRIORITIES,
+        drier,
+      }),
+    [analysis, declared, drier]
+  )
+  const moved = PRIORITIES.some(
+    ({ key }) => priorities[key] !== DEFAULT_PRIORITIES[key]
+  )
+  const changed = strategies
+    .filter((s, i) => s.rotationLabel !== atDefault[i]?.rotationLabel)
+    .map((s) => s.title)
   const fits = strategies.map(fit)
 
   return (
     <div className="flex flex-col gap-4">
       {/* The finding first: the rotation options are a response to it. */}
-      <p className="rounded-lg bg-muted px-3 py-2 text-sm font-medium text-pretty">{seasonHeadline(analysis.seasons, year)}</p>
+      <p className="rounded-lg bg-muted px-3 py-2 text-sm font-medium text-pretty">
+        {seasonHeadline(analysis.seasons, year)}
+      </p>
 
       {/* Straight after the finding and above the cards, so all three options and their bars are on the first screen. */}
       <section className="flex flex-col gap-2">
@@ -169,12 +268,19 @@ export function StrategiesTab({ analysis, year, declared, priorities, onPrioriti
         <Table className="table-fixed">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="h-auto w-[28%] py-2 pl-0 align-bottom whitespace-normal">Indicator</TableHead>
+              <TableHead className="h-auto w-[28%] py-2 pl-0 align-bottom whitespace-normal">
+                Indicator
+              </TableHead>
               {strategies.map((s, i) => (
-                <TableHead key={i} className="h-auto py-2 align-bottom leading-tight whitespace-normal">
+                <TableHead
+                  key={i}
+                  className="h-auto py-2 align-bottom leading-snug whitespace-normal"
+                >
                   {s.title}
                   {/* in the narrow panel the crop list would wrap a word per line; the cards below carry it */}
-                  <div className="hidden text-xs font-normal text-muted-foreground @md:block">{s.rotationLabel}</div>
+                  <div className="hidden text-xs font-normal text-muted-foreground @md:block">
+                    {s.rotationLabel}
+                  </div>
                 </TableHead>
               ))}
             </TableRow>
@@ -182,11 +288,15 @@ export function StrategiesTab({ analysis, year, declared, priorities, onPrioriti
           <TableBody>
             {fits.every(Boolean) && (
               <TableRow className="hover:bg-transparent">
-                <TableCell className="pl-0 text-xs font-medium whitespace-normal">{FIT}</TableCell>
+                <TableCell className="pl-0 text-xs font-medium whitespace-normal">
+                  {FIT}
+                </TableCell>
                 {fits.map((f, k) => (
                   <TableCell key={k}>
                     <div className="flex flex-col gap-1">
-                      <span className="text-xs font-medium tabular-nums">{f!.level}</span>
+                      <span className="text-xs font-medium tabular-nums">
+                        {f!.level}
+                      </span>
                       <Meter indicator={f!} />
                     </div>
                   </TableCell>
@@ -195,7 +305,9 @@ export function StrategiesTab({ analysis, year, declared, priorities, onPrioriti
             )}
             {strategies[0]?.indicators.map((row, i) => (
               <TableRow key={row.key} className="hover:bg-transparent">
-                <TableCell className="pl-0 text-xs whitespace-normal">{row.label}</TableCell>
+                <TableCell className="pl-0 text-xs whitespace-normal">
+                  {row.label}
+                </TableCell>
                 {strategies.map((s, k) => (
                   <TableCell key={k}>
                     <div className="flex flex-col gap-1">
@@ -208,9 +320,11 @@ export function StrategiesTab({ analysis, year, declared, priorities, onPrioriti
             ))}
           </TableBody>
         </Table>
-        <p className="text-xs text-pretty text-muted-foreground">
-          Bars compare the options with each other. They are relative scores, not yield or price forecasts, and they rest on a draft crop
-          catalogue that no local agronomist has reviewed (dated 2026-11-14). The choice stays with you and your agronomist.
+        <p className="max-w-[60ch] text-xs text-pretty text-muted-foreground">
+          Bars compare the options with each other. They are relative scores,
+          not yield or price forecasts, and they rest on a draft crop catalogue
+          that no local agronomist has reviewed (dated 2026-11-14). The choice
+          stays with you and your agronomist.
         </p>
       </section>
 
@@ -230,7 +344,10 @@ export function StrategiesTab({ analysis, year, declared, priorities, onPrioriti
             ))}
           </div>
           {moved && (
-            <p aria-live="polite" className="text-xs text-pretty text-muted-foreground">
+            <p
+              aria-live="polite"
+              className="text-xs text-pretty text-muted-foreground"
+            >
               {changed.length
                 ? `Changed from medium priorities: ${changed.join(", ")}.`
                 : `The same three rotations as with medium priorities${fits.some(Boolean) ? "; the fit bars show how well each now matches" : ""}.`}
@@ -238,15 +355,24 @@ export function StrategiesTab({ analysis, year, declared, priorities, onPrioriti
           )}
         </div>
         <div className="flex flex-col justify-between gap-3 rounded-xl border border-dashed bg-muted/50 p-3">
-          <Dial id="what-if-drier" label="Drier and hotter than the record" word={whatIf(drier)} value={drier} onChange={onDrier} />
+          <Dial
+            id="what-if-drier"
+            label="Drier and hotter than the record"
+            word={whatIf(drier)}
+            value={drier}
+            onChange={onDrier}
+          />
           <p className="text-xs text-pretty text-muted-foreground">
-            A what-if, not a forecast. Far right: about a quarter less May to August rain, and hotter.
+            A what-if, not a forecast. Far right: about a quarter less May to
+            August rain, and hotter.
           </p>
         </div>
       </section>
 
       <section className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium">Options to discuss with your agronomist</h3>
+        <h3 className="text-sm font-medium">
+          Options to discuss with your agronomist
+        </h3>
         {/* as many cards across as fit at 14rem each: three in the full-width panel from 1440 px, two when the map needs the room */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-3">
           {strategies.map((s, i) => (
