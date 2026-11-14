@@ -122,7 +122,8 @@ function FitToField({
     map.fitBounds(bounds(field.geometry), {
       padding,
       maxZoom: 13,
-      duration: still ? 0 : 600,
+      duration: still ? 0 : 450,
+      easing: (t: number) => 1 - (1 - t) ** 4,
     })
     // refit when the selection or the layout changes, not when the field object does
     // eslint-disable-next-line react-hooks/exhaustive-deps
