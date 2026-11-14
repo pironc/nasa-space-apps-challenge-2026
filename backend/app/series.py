@@ -117,7 +117,7 @@ async def s2_series(c, geometry):
         if s is None or s is FAILED:
             return s
         m = s[0]["mean"] or 0.0
-        row = {"date": p["datetime"][:10], "px": s[0]["valid_pixels"], "clear": m, "snow": s[1]["mean"] or 0.0}
+        row = {"date": p["datetime"][:10], "item": it["id"], "px": s[0]["valid_pixels"], "clear": m, "snow": s[1]["mean"] or 0.0}
         for name, band in zip(("ndvi", "ndmi", "nbr2"), s[2:]):
             q = hist_quantiles(*band["histogram"], [0.5])[0]             # median of the clear pixels
             row[name] = None if q is None else round(q, 4)

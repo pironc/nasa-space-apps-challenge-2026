@@ -287,7 +287,7 @@ def check_polygon():
 
 # The contract (frontend/src/lib/analysis.ts), key by key.
 CONTRACT = {
-    "FieldAnalysis": ["schema", "id", "generatedAt", "field", "dekads", "seasons", "baseline", "modis", "climate", "profile", "soil"],
+    "FieldAnalysis": ["schema", "id", "generatedAt", "field", "dekads", "seasons", "baseline", "modis", "climate", "profile", "soil", "scenes"],
     "field": ["areaHa", "centre"],
     "Season": ["year", "ndvi", "ndmi", "obs", "use", "declared", "peak", "peakDekad", "verdicts", "explanation"],
     "Verdict": ["type", "severity", "title", "detail"],
