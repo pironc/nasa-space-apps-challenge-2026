@@ -1,9 +1,15 @@
+import {
+  PanelRightCloseIcon,
+  PanelRightOpenIcon,
+  Columns3Icon,
+} from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { AnalysisPanel, TABS, type TabId } from "@/components/analysis-panel"
 import { AppSidebar } from "@/components/app-sidebar"
 import { FieldMap } from "@/components/field-map"
+import { Button } from "@/components/ui/button"
 import { TimeSlider } from "@/components/time-slider"
 import {
   Drawer,
@@ -22,12 +28,18 @@ import {
   type SavedField,
 } from "@/lib/fields"
 import {
+  addDays,
+  clampDay,
   DEFAULT_DATE,
   defaultLayerState,
-  snapDate,
+  LAYERS,
+  periodDates,
   type LayerId,
   type LayerState,
 } from "@/lib/layers"
+
+/** The field image for a day: the latest clear pass on or before it, at most this many days old. */
+const SCENE_MAX_AGE = 30
 
 const query = new URLSearchParams(location.search)
 const tabOf = (q: URLSearchParams) =>
@@ -39,7 +51,7 @@ export function App() {
   const { fields: saved, add, patch, remove, restore } = useSavedFields()
   const [presets, setPresets] = useState<SavedField[]>([])
   const [date, setDate] = useState(() =>
-    snapDate(query.get("date") ?? DEFAULT_DATE)
+    clampDay(query.get("date") ?? DEFAULT_DATE)
   )
   const [selectedId, setSelectedId] = useState<string | null>(
     query.get("field")
@@ -55,13 +67,68 @@ export function App() {
   const fieldAnswers = (selectedId && answers[selectedId]) || NO_ANSWERS
   const analysis = useAnalysis(selected, fieldAnswers)
   const year = +date.slice(0, 4)
+  // The map comes first: the analysis panel is narrow unless asked wider, and can be hidden.
+  const [panelMode, setPanelMode] = useState<"narrow" | "wide" | "hidden">(
+    "narrow"
+  )
+
+  // Clear Sentinel-2 passes over the selected field, and the one to show for a day.
+  const scenes = useMemo(
+    () => (analysis.status === "ready" ? (analysis.analysis.scenes ?? []) : []),
+    [analysis]
+  )
+  const sceneFor = useCallback(
+    (d: string) =>
+      scenes.findLast(
+        (s) => s.date <= d && s.date >= addDays(d, -SCENE_MAX_AGE)
+      ) ?? null,
+    [scenes]
+  )
+  // Play moves to the next day something visible changes: every day with a daily layer on,
+  // otherwise the next field image or vegetation period. It loops within the year.
+  const step = useCallback(
+    (d: string) => {
+      const y = +d.slice(0, 4)
+      const daily = LAYERS.some((l) => l.daily && layers[l.id].on)
+      let n = addDays(d, 1)
+      if (!daily) {
+        const options = [
+          layers.ndvi.on && periodDates(y).find((p) => p > d),
+          layers.scene.on && scenes.find((s) => s.date > d)?.date,
+        ].filter((x): x is string => !!x)
+        n = options.length ? options.sort()[0] : addDays(d, 16)
+      }
+      return n.startsWith(String(y)) && clampDay(n) === n ? n : `${y}-01-01`
+    },
+    [layers, scenes]
+  )
+  const nextDates = useMemo(() => {
+    const a = step(date)
+    return [a, step(a)]
+  }, [date, step])
+  const scene =
+    selected && layers.scene.on && year >= 2018 ? sceneFor(date) : undefined
+  const nextScenes = nextDates
+    .map(sceneFor)
+    .filter((s) => !!s)
+    .map((s) => s!.item)
+  // Play waits until the next frame of every visible layer has loaded.
+  const [readyById, setReadyById] = useState<Record<string, boolean>>({})
+  const onReady = useCallback(
+    (id: string, ready: boolean) =>
+      setReadyById((prev) =>
+        prev[id] === ready ? prev : { ...prev, [id]: ready }
+      ),
+    []
+  )
+  const ready = Object.values(readyById).every(Boolean)
 
   // A demo field opens on its stressed year, the season its story is about.
   const select = (id: string | null) => {
     if (id === selectedId) return
     setSelectedId(id)
     const demo = presets.find((p) => p.id === id)?.preset
-    if (demo) setDate(snapDate(midJuly(demo.demoYears[0])))
+    if (demo) setDate(clampDay(midJuly(demo.demoYears[0])))
   }
 
   useEffect(() => {
@@ -84,7 +151,7 @@ export function App() {
         if (list[0] && (asked === null || unknown)) {
           setSelectedId(list[0].id)
           if (!query.has("date") || unknown)
-            setDate(snapDate(midJuly(list[0].demoYears[0])))
+            setDate(clampDay(midJuly(list[0].demoYears[0])))
         }
       },
       () => toast("The demo fields could not be loaded.")
@@ -111,7 +178,7 @@ export function App() {
     const onPop = () => {
       const q = new URLSearchParams(location.search)
       setSelectedId(q.get("field"))
-      setDate(snapDate(q.get("date") ?? DEFAULT_DATE))
+      setDate(clampDay(q.get("date") ?? DEFAULT_DATE))
       setTab(tabOf(q))
     }
     addEventListener("popstate", onPop)
@@ -149,7 +216,7 @@ export function App() {
       tab={tab}
       onTabChange={setTab}
       year={year}
-      onYear={(y) => setDate(snapDate(midJuly(y)))}
+      onYear={(y) => setDate(clampDay(midJuly(y)))}
       onRotation={onRotation}
       answers={fieldAnswers}
       onDeclare={(y, use) =>
@@ -163,10 +230,10 @@ export function App() {
       }
     />
   )
-  // Strategy cards side by side need room; the other tabs read better narrow. The wide panel gives way
-  // (down to two cards across) before the map gets narrower than 420 px. Below 1280 px the panel stays narrow.
+  // Wide only when asked, for comparing the three strategy cards side by side.
   const wide =
-    !!selected && tab === "strategies" && analysis.status !== "failed"
+    panelMode === "wide" && tab === "strategies" && analysis.status !== "failed"
+  const hidden = panelMode === "hidden"
   const drawer = isMobile && !!selected
 
   return (
@@ -192,12 +259,18 @@ export function App() {
         <div className="@container relative isolate min-w-0 flex-1 xl:min-w-[420px]">
           <FieldMap
             date={date}
+            nextDates={nextDates}
+            scene={scene?.item ?? null}
+            nextScenes={nextScenes}
+            onReady={onReady}
             layers={layers}
             fields={fields}
             selectedId={selectedId}
             onSelect={select}
             // the map changes width with the panel, and on a phone the drawer covers most of it
-            layout={drawer ? "drawer" : wide ? "wide" : "narrow"}
+            layout={
+              drawer ? "drawer" : hidden ? "full" : wide ? "wide" : "narrow"
+            }
             onSave={(f) => {
               const field = {
                 ...f,
@@ -212,10 +285,50 @@ export function App() {
           <div
             className={`absolute inset-x-3 z-10 mx-auto max-w-md ${drawer ? "bottom-[calc(50dvh+0.75rem)]" : "bottom-16 @2xl:bottom-10"}`}
           >
-            <TimeSlider date={date} onChange={setDate} />
+            <TimeSlider
+              date={date}
+              onChange={setDate}
+              step={step}
+              ready={ready}
+              scene={scene}
+              sceneDates={layers.scene.on ? scenes.map((s) => s.date) : []}
+              vegetation={layers.ndvi.on}
+            />
           </div>
+          {/* Panel controls under the zoom buttons, out of the way of the drawing toolbar. */}
+          {!isMobile && selected && (
+            <div className="absolute top-[4.75rem] right-2 z-10 flex flex-col gap-2 font-sans">
+              <Button
+                variant="outline"
+                size="icon"
+                className="bg-background shadow-sm"
+                aria-label={
+                  hidden ? "Show the analysis panel" : "Hide the analysis panel"
+                }
+                title={
+                  hidden ? "Show the analysis panel" : "Hide the analysis panel"
+                }
+                onClick={() => setPanelMode(hidden ? "narrow" : "hidden")}
+              >
+                {hidden ? <PanelRightOpenIcon /> : <PanelRightCloseIcon />}
+              </Button>
+              {!hidden && tab === "strategies" && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="bg-background shadow-sm"
+                  aria-pressed={wide}
+                  aria-label="Compare the three options side by side"
+                  title="Compare the three options side by side"
+                  onClick={() => setPanelMode(wide ? "narrow" : "wide")}
+                >
+                  <Columns3Icon />
+                </Button>
+              )}
+            </div>
+          )}
         </div>
-        {!isMobile && (
+        {!isMobile && !hidden && (
           <aside
             aria-label="Field analysis"
             className={`w-88 min-w-[280px] shrink border-l bg-background ${wide ? "xl:w-[56rem] xl:min-w-88" : ""}`}
