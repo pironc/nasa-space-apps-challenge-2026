@@ -125,7 +125,7 @@ def _run(mask):
     return best
 
 
-DEFICIT_TITLE = {"watch": "Peak greenness a little below this field's normal",
+DEFICIT_TITLE = {"watch": "Peak greenness below this field's normal",
                  "warning": "Peak greenness well below this field's normal",
                  "severe": "Peak greenness far below this field's normal"}
 V = lambda type, severity, title, detail: {"type": type, "severity": severity, "title": title, "detail": detail}
@@ -146,7 +146,7 @@ def verdicts(series, mets, year, upto=None):
         what = f"Only {n_obs} of the season's {N} ten-day periods" if n_obs < K.MIN_SEASON_DEKADS else \
                f"Only {m['n_mid']} of the {MID.stop - MID.start} ten-day periods in the main growing window (21 June to 10 August)"
         return [V("INSUFFICIENT_DATA", "info", "Too few clear satellite passes to judge this season",
-                  f"{what} had a cloud-free view of the field, too few to read the season's peak.")], None
+                  f"{what} had a clear view of soil or vegetation (cloud, snow and water do not count), too few to read the season's peak.")], None
     b = baseline(series, mets, year)
     pk = _max(nd[PEAK])
     pi = PEAK.start + int(np.nanargmax(nd[PEAK])) if np.isfinite(pk) else last
@@ -155,7 +155,7 @@ def verdicts(series, mets, year, upto=None):
     if use == "ambiguous":                                     # weedy fallow or failed crop: ask, never judge
         share = f" (peak {pk / b['peak_med'] * 100:.0f}% of this field's usual)" if b and np.isfinite(pk) else ""
         return [V("LAND_USE_UNCLEAR", "info", "Failed crop or fallow year? The satellite cannot tell",
-                  f"Low green cover in {year}{share}. Was this a crop that failed, or a fallow year? Tell us to complete the analysis.")], None
+                  f"Low green cover in {year}{share}. Was this a crop that failed, or a fallow year? Answer below to complete the analysis.")], None
     out = []
     # BARE_SOIL: 30 days in a row bare AND tilled. Crop years: inside 21 Jun-10 Aug only (August stubble is
     # harvest, not a finding). Fallow years: to 31 Aug, as information.
@@ -199,7 +199,7 @@ def verdicts(series, mets, year, upto=None):
         return out + [NOTE("Lower peak, normal season total", f"Peak NDVI was {ratio * 100:.0f}% of usual but green cover summed from 1 June to 20 August was {total * 100:.0f}% of usual. "
                            "Lower peak but a normal season total: the crop or sowing date probably differs from earlier years.")], ratio
     sev = next(name for edge, name in K.DEFICIT if ratio <= edge)
-    detail = (f"Peak NDVI {pk:.2f} (highest between 1 June and 20 August) was {ratio * 100:.0f}% of this field's usual {b['peak_med']:.2f}, "
+    detail = (f"Peak NDVI {pk:.2f} (highest ten-day median between 1 June and 20 August) was {ratio * 100:.0f}% of this field's usual {b['peak_med']:.2f}, "
               f"compared with {len(b['years'])} other cropped seasons since {K.S2_FIRST_YEAR}; green cover summed over those weeks was {total * 100:.0f}% of usual.")
     if m["declared"] == "crop" and m["use"] != "cropped":
         detail += " This year is judged as a crop because it was declared as one; the curve alone cannot tell a failed crop from a weedy fallow."

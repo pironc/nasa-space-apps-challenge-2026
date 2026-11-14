@@ -17,9 +17,13 @@ MODIS_NOTE = (f"NASA MODIS at 250 m: the highest NDVI between June and late Augu
               f"marked cropped or fallow from the Sentinel-2 curve or the declared land use. Land use before {K.S2_FIRST_YEAR} is not known: "
               f"a summer with a MODIS peak under {K.MODIS_BARE_PEAK:.2f} is shown as bare (a fallow year or a failed crop), every other one as cropped-looking. "
               "2025 is excluded: the source archive has no MODIS data from 26 June to 17 November 2025.")
-NO_WEATHER_REASON = ("The regional weather record does not explain the low greenness. Causes this app cannot see include a local shortfall of rain, "
-                     "hail, a frost pocket, late sowing, weeds, pests, disease, nutrition, herbicide injury, or a different crop from earlier years. "
-                     "This needs a field visit.")
+NO_WEATHER_REASON = ("No unusually dry or hot spell was flagged in the regional weather record before this crop's peak.{} Causes this app cannot see include "
+                     "a local shortfall of rain, hail, a frost pocket, late sowing, weeds, pests, disease, nutrition, herbicide injury, or a different crop "
+                     "from earlier years; this needs a field visit.")
+AFTER_PEAK = " {} weather was flagged this season, but only by a date after this peak, so it remains a possible reason."
+SOME_SOWINGS = " {} weather was unusual for some of the sowing dates tested only, so it remains a possible reason."
+MODIS_DISAGREES = " The NASA MODIS record at 250 m does not show this year as unusual; the two disagree, which is {} reason for a field visit."
+NO_CROP_NOTE = ("No cropped season found", f"No season since {K.S2_FIRST_YEAR} looks like an annual crop on this outline. Check that it follows a field.")
 
 
 # ---------- geometry: validation, cache key, area ----------
@@ -35,20 +39,32 @@ def canonical_ring(geometry):
         raise ValueError(f"The outline needs {K.MIN_VERTICES} to {K.MAX_VERTICES} points (the last one closes the ring).")
     try:
         pts = [(round(float(x), 5), round(float(y), 5)) for x, y, *_ in rings[0]]
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         raise ValueError("Every point of the outline must be a [longitude, latitude] pair.") from None
     if not all(math.isfinite(x) and math.isfinite(y) and -180 <= x <= 180 and -85 <= y <= 85 for x, y in pts):
         raise ValueError("The outline has coordinates out of range.")
     pts = [p for i, p in enumerate(pts) if i == 0 or p != pts[i - 1]]
     if len(pts) > 1 and pts[0] == pts[-1]:
         pts.pop()
+    if len(pts) < 3:
+        raise ValueError("The outline has no area.")
+    if _crosses(pts):
+        raise ValueError("The outline crosses itself.")
     twice_area = sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1]))
-    if len(pts) < 3 or twice_area == 0:
+    if twice_area == 0:
         raise ValueError("The outline has no area.")
     if twice_area < 0:
         pts.reverse()
     i = pts.index(min(pts))
     return pts[i:] + pts[:i]
+
+
+def _crosses(pts):
+    """True when two non-adjacent edges of the closed ring cross (touching at a point is allowed). At most 200 points, so every pair is tried."""
+    side = lambda a, b, c: (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    edges = list(zip(pts, pts[1:] + pts[:1]))
+    return any(side(a, b, c) * side(a, b, d) < 0 and side(c, d, a) * side(c, d, b) < 0
+               for i, (a, b) in enumerate(edges) for c, d in edges[i + 2:len(edges) - (i == 0)])
 
 
 def field_hash(ring, declared_use=None):
@@ -66,6 +82,12 @@ def area_ha(ring):
 def validate(geometry):
     """-> (canonical ring, hectares). ValueError when the polygon is not an acceptable field."""
     ring = canonical_ring(geometry)
+    xs, ys = zip(*ring)
+    w, s, e, n = K.KZ_BOX
+    if not (w <= min(xs) and max(xs) <= e and s <= min(ys) and max(ys) <= n):
+        raise ValueError("Field Shift only covers Kazakhstan. Draw the field inside Kazakhstan.")
+    if max(xs) - min(xs) > K.MAX_SPAN_DEG[0] or max(ys) - min(ys) > K.MAX_SPAN_DEG[1]:   # a strip of few hectares can cross dozens of satellite tiles
+        raise ValueError("The outline spans more than about 30 km. Outline a single field.")
     ha = area_ha(ring)
     if not K.MIN_HA <= ha <= K.MAX_HA:
         raise ValueError(f"The field covers {ha:,.1f} ha; it must be between {K.MIN_HA} and {K.MAX_HA:,.0f} ha.")
@@ -95,18 +117,23 @@ def _nums(a, nd=3):
     return [None if not np.isfinite(x) else round(float(x), nd) for x in a]
 
 
-def explanation(deficit, ratio, flags, peak_end):
+def explanation(deficit, ratio, flags, before, modis_usual=False, some=()):
     """How the regional weather record relates to one season's greenness, in fixed wording. None = nothing to say.
     deficit: severity of the season's VEG_DEFICIT or None; ratio: peak / usual peak, None when the season was not judged;
-    flags: {"water_deficit" or "heat": date by which the robust flag was reached}; peak_end: last day of the peak's ten-day bin."""
-    words = lambda ks: " and ".join({"water_deficit": "dry", "heat": "hot"}[k] for k in ks)
+    flags: the causes ("water_deficit", "heat") robustly flagged over the whole season; before: those that already held by the end of
+    the peak's ten-day bin (weather after the peak cannot explain the peak); modis_usual: the MODIS peak of the year was near its median;
+    some: the causes flagged for some sowing dates only. Those, and season flags reached only after the peak, are named as possible reasons,
+    so the "nothing flagged before the peak" sentence does not sit against the season's own weather numbers."""
+    words = lambda ks: " and ".join(w for k, w in (("water_deficit", "dry"), ("heat", "hot")) if k in ks)
     if deficit in ("warning", "severe"):
-        before = [k for k in flags if flags[k] <= peak_end]       # weather after the peak cannot explain the peak
         if not before:
-            return NO_WEATHER_REASON
+            maybe = "".join(text.format(words(ks).capitalize()) for text, ks in ((AFTER_PEAK, flags), (SOME_SOWINGS, some)) if words(ks))
+            return (NO_WEATHER_REASON.format(maybe)
+                    + (MODIS_DISAGREES.format("another") if modis_usual else ""))
         return (f"Regional weather was unusually {words(before)} before this crop's peak (NASA POWER, about 50 km grid). That is consistent with the low "
                 "greenness on this field. The grid cannot show whether this field received the same weather."
-                + (" Dry and hot conditions came together; the data cannot say which did more harm." if len(before) == 2 else ""))
+                + (" Dry and hot conditions came together; the data cannot say which did more harm." if len(before) == 2 else "")
+                + (MODIS_DISAGREES.format("a") if modis_usual else ""))
     if flags and ratio is not None and ratio > K.DEFICIT_WATCH:
         return f"Regional weather was unusually {words(flags)} this season, but this field's greenness stayed within its usual range."
     return None                                                   # a watch, a fallow or unjudged year, or nothing flagged
@@ -120,26 +147,34 @@ def assemble(field_id, ring, s2_rows, cell, modis_rows=None, soil=None, today=No
     years = range(K.S2_FIRST_YEAR, max((d.year for d in rec["date"]), default=K.S2_FIRST_YEAR) + 1)
     S = {y: veg.build_year(rec, y) for y in years}
     M = {y: veg.metrics(S[y], (declared_use or {}).get(y)) for y in years}
-    clim, profile, flags = climate.analyse_cell(cell)
+    clim, profile, flags, hot_before = climate.analyse_cell(cell)
+    modis = None
+    if modis_rows and ha >= K.MODIS_MIN_HA:
+        myears, mmed = veg.modis_years(modis_rows, {y: M[y]["eff"] for y in years})
+        if mmed is not None:
+            modis = {"years": myears, "peakMedian": mmed, "note": MODIS_NOTE}
+    mpeak = {m["year"]: m["peak"] for m in modis["years"] if m["peak"] is not None} if modis else {}
     seasons = []
+    some = {s["year"]: [c["type"] for c in s["causes"] if not c["robust"]] for s in clim["seasons"]}
     for y in years:
         # a season still running is judged only up to the current ten-day bin
         upto = None if today >= dt.date(y, 10, 1) else max(veg.dekad_of_year(today) - K.D0, 0)
         m = M[y]
         found, ratio = veg.verdicts(S, M, y, upto)
         deficit = next((v["severity"] for v in found if v["type"] == "VEG_DEFICIT"), None)
+        f, before = flags.get(y, {}), []
+        if deficit in ("warning", "severe"):                       # only then is there a peak to explain
+            end = veg.dekad_end(y, m["peak_i"])
+            before = [k for k, held in (("water_deficit", "water_deficit" in f and f["water_deficit"] <= end), ("heat", hot_before(y, end))) if held]
         seasons.append({"year": y, "ndvi": _nums(S[y]["ndvi"]), "ndmi": _nums(S[y]["ndmi"]), "obs": [int(n) for n in S[y]["obs"]],
                         "use": m["use"], "declared": m["declared"], "peak": None if m["peak_i"] < 0 else round(m["peak"], 3),
                         "peakDekad": None if m["peak_i"] < 0 else m["peak_i"], "verdicts": found,
-                        "explanation": explanation(deficit, ratio, flags.get(y, {}), veg.dekad_end(y, m["peak_i"]))})
+                        "explanation": explanation(deficit, ratio, f, before, y in mpeak and mpeak[y] >= K.MODIS_USUAL * modis["peakMedian"], some.get(y, ()))})
+    if seasons and not any(M[y]["eff"] == "cropped" for y in years):   # a town, a lake, a forest, grassland: say so once
+        seasons[-1]["verdicts"].append(veg.NOTE(*NO_CROP_NOTE))
     b = veg.baseline(S, M)
     judged = [s for s in seasons if M[s["year"]]["eff"] not in ("unknown", "ambiguous")]   # seasons whose land use is known
     bare = [s for s in judged if M[s["year"]]["eff"] == "fallow" or any(v["type"] == "BARE_SOIL" for v in s["verdicts"])]
-    modis = None
-    if modis_rows and ha >= K.MODIS_MIN_HA:
-        myears, mmed = veg.modis_years(modis_rows, {y: M[y]["eff"] for y in years})
-        if mmed is not None:
-            modis = {"years": myears, "peakMedian": mmed, "note": MODIS_NOTE}
     return {
         "schema": K.SCHEMA, "id": field_id, "generatedAt": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "field": {"areaHa": round(ha, 1), "centre": [round(sum(x for x, _ in ring) / len(ring), 5), round(sum(y for _, y in ring) / len(ring), 5)]},

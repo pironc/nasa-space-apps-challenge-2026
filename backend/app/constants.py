@@ -8,16 +8,22 @@ from pathlib import Path
 # ---- storage and limits -------------------------------------------------------------------------
 DATA_DIR = Path(os.environ.get("DATA_DIR") or Path(__file__).resolve().parents[1] / ".data")  # cache root
 SCHEMA = 1                      # FieldAnalysis.schema; a cached file with another value is rebuilt
-RULES = 2                       # version of the analysis rules, part of every field's cache key: raise it when a rule changes
+RULES = 3                       # version of the analysis rules, part of every field's cache key: raise it when a rule changes
 USER_AGENT = "fieldshift/0.1"   # client name sent to outside services (never a person or a repository)
 CONCURRENCY = 40                # one global limit on calls to the Planetary Computer, across all users
 RETRIES = 3                     # tries per upstream call on HTTP 429/502/503/504 and timeouts
 MAX_FAILED_SHARE = 0.10         # more than this share of scenes unanswered: report the upstream as down
-MAX_BUILDS = 2                  # first-time field builds running at once before the API answers 429
+MAX_BUILDS = 6                  # first-time field builds running at once before the API answers 429 (CONCURRENCY still caps upstream load)
+BUILD_TIMEOUT_S = 150           # one build may take this long in all; past it the API answers 502 and frees the slot
+BUILDS_PER_HOUR = 20            # new fields one connection may build per hour (several people can share one address)
+MAX_BODY_BYTES = 50_000         # a request body larger than this is refused unread (a 200-point outline is about 8 kB)
+KEEP_FILES = {"fields": 2000, "climate": 100}   # newest cache files kept per folder (about 22 kB and 0.63 MB each)
 FIELD_CACHE_HOURS = 12          # in season (1 May to 15 Oct) a cached field older than this is rebuilt
 CLIMATE_CACHE_HOURS = 24        # a cached NASA POWER cell older than this is fetched again
 MIN_VERTICES, MAX_VERTICES = 4, 200   # ring positions as sent (GeoJSON closes the ring, so 4 = a triangle)
 MIN_HA, MAX_HA = 0.5, 5000.0    # accepted field size, hectares
+KZ_BOX = (46.0, 40.0, 88.0, 56.0)   # west, south, east, north: a box around Kazakhstan; every rule here was written for its grain belt
+MAX_SPAN_DEG = (0.5, 0.3)       # widest outline accepted, degrees of longitude and latitude (about 30 km): stops long thin strips
 EARTH_RADIUS_M = 6378137.0      # same sphere as @turf/area, so the server and the browser agree on hectares
 
 # ---- Sentinel-2 series --------------------------------------------------------------------------
@@ -66,6 +72,7 @@ MODIS_MIN_COMPOSITES = 4        # fewer usable composites (of 5) in a summer: th
 MODIS_GAP_YEARS = (2025,)       # the Planetary Computer archive has no composites from 2025-06-26 to 2025-11-17
 MODIS_BARE_PEAK = 0.40          # before 2018 only (land use not known): a MODIS peak under this reads as a bare summer
                                 # (FALLOW_MAX plus the 0.1 MODIS reads higher than Sentinel-2)
+MODIS_USUAL = 0.90              # a MODIS peak at or above 90 % of the MODIS median: MODIS does not show the year as unusual
 MODIS_MIN_HA = 150.0            # 250 m pixels mix in the neighbours of smaller fields: no MODIS record under this
 
 # ---- climate (NASA POWER daily, one grid cell) ---------------------------------------------------
@@ -89,7 +96,9 @@ DRY_WINDOW_DAYS = 40            # water: rain in the driest 40-day window ...
 DRY_STARTS = range(0, 31, 5)    # ... among windows starting 0, 5, ... 30 days after sowing, as a share of the normal for those dates
 DRY_RATIO, DRY_PCTL = 0.40, 20  # flagged at or under 40 % of normal AND at or under the cell's own 20th percentile
 HEAT_DAYS, HEAT_PCTL = 90, 90   # heat: hot days from sowing to sowing + 90 days, flagged at or above the cell's 90th percentile
+                                # ("hot before the peak" uses the same percentile on the days from sowing to the end of the peak's ten-day bin)
 FROST_SEEDLING, FROST_FLOWER, FROST_FILL = -4.0, 0.0, -2.0   # damaging minimum temperature by stage (K-State C646)
+ROOT_WINDOW, ROOT_DRY_PCTL = ((5, 1), (6, 30)), 20   # modelled root-zone wetness, 1 May to 30 June mean: one evidence line when in the driest fifth
 WET_PCTL = (80, 80, 85)         # harvest rain, wet days and topsoil wetness percentiles; two of the three flag a wet harvest
 TREND_P = 0.05                  # Mann-Kendall p under this: the trend is called statistically clear
 

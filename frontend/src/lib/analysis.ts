@@ -160,8 +160,10 @@ export type Strategy = {
   rotation: string[]
   /** Human-readable, e.g. "Wheat, flax, wheat, barley". */
   rotationLabel: string
-  /** How well this rotation is supported: "Local rotation trial", "Crops trialled locally, rotation not" or "Judgement". */
+  /** How well this rotation is supported: "Local rotation trial", "Each crop trialled locally; this sequence is not" or "Judgement". */
   evidenceGrade: string
+  /** 0 to 1: how well this option fits the priorities the farmer set. Moves with the sliders. */
+  priorityFit: number
   indicators: Indicator[]
   why: string[]
   evidence: string[]

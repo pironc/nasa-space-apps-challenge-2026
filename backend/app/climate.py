@@ -8,6 +8,7 @@ import json
 import math
 import os
 import time
+import warnings
 
 import numpy as np
 
@@ -17,6 +18,7 @@ from .series import UpstreamError
 POWER = "https://power.larc.nasa.gov/api/temporal/daily/point"
 ORIGIN = dt.date(K.POWER_START_YEAR, 1, 1)
 DAY = dt.timedelta(days=1)
+ROOT_DRY = "NASA POWER modelled root-zone wetness for the area was in the driest fifth of years in May and June."
 
 
 def cell_of(lat, lon):
@@ -107,14 +109,16 @@ def _htc(p, t):
 # ---------- the analysis ----------
 def analyse_cell(cell):
     """-> (the `climate` block of the contract, profile inputs {"rainMeanMm", "water", "heat", "frost", "years"},
-    {year: {"water_deficit" or "heat": the date by which the season was already flagged}} for the robust flags).
+    {year: {"water_deficit" or "heat": the date by which the season was already flagged}} for the robust flags,
+    hot_before(year, end) -> bool: was it unusually hot from sowing to `end`, like for like against the same dates of other years).
+    The heat date is when the 90-day count was reached, usually after a July peak: use hot_before to test heat against a peak.
     Every percent, percentile and "usual" refers to the 1991-2020 values of this cell."""
     raw = {k: np.array([np.nan if v is None else v for v in a], float) for k, a in cell["data"].items()}
     ok = np.flatnonzero(np.isfinite(raw["T2M"]) & np.isfinite(raw["PRECTOTCORR"]))
     last_day = ORIGIN + int(ok[-1]) * DAY
     pad = (dt.date(last_day.year, 12, 31) - ORIGIN).days + 1 - len(raw["T2M"])     # windows may reach past the last day served
-    t, tx, tn, p, gtop = (np.concatenate([raw[k], np.full(max(pad, 0), np.nan)])
-                          for k in ("T2M", "T2M_MAX", "T2M_MIN", "PRECTOTCORR", "GWETTOP"))
+    t, tx, tn, p, gtop, groot = (np.concatenate([raw[k], np.full(max(pad, 0), np.nan)])
+                                 for k in ("T2M", "T2M_MAX", "T2M_MIN", "PRECTOTCORR", "GWETTOP", "GWETROOT"))
     sl = lambda a, b: slice((a - ORIGIN).days, (b - ORIGIN).days + 1)              # inclusive window of days
     # a season counts once its data reach 30 September
     years = [y for y in range(K.POWER_START_YEAR, last_day.year + 1) if dt.date(y, 9, 30) <= last_day]
@@ -143,7 +147,7 @@ def analyse_cell(cell):
         v = fn(sl(a, b))
         ref = [fn(sl(a.replace(year=r), b.replace(year=r))) for r in base]
         mean = float(np.mean(ref))
-        return v, (100 * v / mean if mean else float("nan")), pct_rank(v, ref)
+        return v, (100 * v / mean if mean else None), pct_rank(v, ref)   # no percent of a zero mean
 
     # Sowing-dependent descriptors for every year at once, so each year is set against the cell's own 1991-2020 values.
     bi = [years.index(y) for y in base]
@@ -154,7 +158,8 @@ def analyse_cell(cell):
         sows = [dt.date(y, *md) for y in years]
         # rain in each 40-day window (rows: start 0, 5, ... 30 days after sowing), as a share of the normal for the same dates
         mm = np.array([[np.nansum(p[sl(d + k * DAY, d + (k + K.DRY_WINDOW_DAYS - 1) * DAY)]) for d in sows] for k in K.DRY_STARTS])
-        share = mm / mm[:, bi].mean(1, keepdims=True)
+        usual = mm[:, bi].mean(1, keepdims=True)
+        share = np.where(usual > 0, mm / np.maximum(usual, 1e-9), 1.0)             # where it never rains, no rain is the usual: never NaN
         hot = np.array([tx[sl(d, d + K.HEAT_DAYS * DAY)] >= K.HOT_DAY for d in sows])
         D[md] = {"mm": mm, "share": share, "dry_at": min(K.DRY_RATIO, float(np.percentile(share.min(0)[bi], K.DRY_PCTL))),
                  "hot": hot, "hot_at": max(1.0, float(np.percentile(hot.sum(1)[bi], K.HEAT_PCTL)))}
@@ -198,7 +203,7 @@ def analyse_cell(cell):
         ev = []
         v, pct, pctl = ranked(lambda w: float(np.nansum(p[w])), *harvest, y)
         if pctl >= K.WET_PCTL[0]:
-            ev.append(f"Rain from 15 August to 20 September was {v:.0f} mm, {pct:.0f}% of the 1991 to 2020 mean.")
+            ev.append(f"Rain from 15 August to 20 September was {v:.0f} mm" + ("." if pct is None else f", {pct:.0f}% of the 1991 to 2020 mean."))
         v, _, pctl = ranked(lambda w: int(np.sum(p[w] >= K.WET_DAY)), *harvest, y)
         if pctl >= K.WET_PCTL[1]:
             ev.append(f"{v} days had rain in the harvest window (15 August to 20 September).")
@@ -212,18 +217,31 @@ def analyse_cell(cell):
         A cause is robust only when it is flagged for every sowing date; flagged for some, it is shown as numbers."""
         res = [tests(y, md) for md in K.SOWINGS]
         out, ends = [], {}
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")                                         # a window with no wetness values ranks as NaN: no line
+            root = ([ROOT_DRY] if ranked(lambda w: float(np.nanmean(groot[w])), dt.date(y, *K.ROOT_WINDOW[0]), dt.date(y, *K.ROOT_WINDOW[1]), y)[2]
+                    <= K.ROOT_DRY_PCTL else [])
         for k in res[0]:
             hits = [r[k][0] for r in res]
             if all(hits):
-                out.append({"type": k, "robust": True, "evidence": res[1][k][1]})
+                out.append({"type": k, "robust": True, "evidence": res[1][k][1] + root * (k == "water_deficit")})
                 if res[0][k][3]:
                     ends[k] = max(r[k][3] for r in res)                             # reached at every sowing date by then
             elif any(hits):
-                out.append({"type": k, "robust": False, "evidence": [
+                out.append({"type": k, "robust": False, "evidence": root * (k == "water_deficit") + [
                     "If " + "; ".join(f"sown on {day(dt.date(y, *md))}: {r[k][2]}" for md, r in zip(K.SOWINGS, res))
                     + f". Unusual for {sum(hits)} of the {len(hits)} sowing dates only, so this depends on the sowing date."]})
         return out, ends
 
+    def hot_before(y, end):
+        """Hot days from sowing to `end` (the last day of the peak's ten-day bin), set against the SAME dates of the normal period:
+        True when the count is at or above the cell's HEAT_PCTL percentile for every sowing date."""
+        def unusual(md):
+            n = lambda r: int(np.sum(tx[sl(dt.date(r, *md), end.replace(year=r))] >= K.HOT_DAY))
+            return n(y) >= max(1.0, float(np.percentile([n(r) for r in base], K.HEAT_PCTL)))
+        return y in S and all(unusual(md) for md in K.SOWINGS)
+
+    percent = lambda v, usual: round(100 * v / usual) if usual else 100             # a rainless normal: 0 of 0 is "as usual", never a division by zero
     pctl = dict(zip(("drought", "severe"), np.percentile([S[y]["htc"] for y in base], K.DROUGHT_PCTL)))
     htcs = sorted(S[years[i]]["htc"] for i in listed)
     out, flags = [], {}
@@ -232,8 +250,8 @@ def analyse_cell(cell):
             continue
         s = S[y]
         found, flags[y] = causes(y)
-        out.append({"year": y, "rainMayAug": round(s["rainMayAug"], 1), "rainMayAugPct": round(100 * s["rainMayAug"] / normals["rainMayAug"]),
-                    "rainOctApr": round(s["rainOctApr"], 1), "rainOctAprPct": round(100 * s["rainOctApr"] / normals["rainOctApr"]),
+        out.append({"year": y, "rainMayAug": round(s["rainMayAug"], 1), "rainMayAugPct": percent(s["rainMayAug"], normals["rainMayAug"]),
+                    "rainOctApr": round(s["rainOctApr"], 1), "rainOctAprPct": percent(s["rainOctApr"], normals["rainOctApr"]),
                     "hotDays30": s["hotDays30"], "htc": round(s["htc"], 2), "htcClass": htc_class(s["htc"]),
                     "htcRank": 1 + htcs.index(s["htc"]), "htcRankOf": len(htcs),
                     "drought": "severe" if s["htc"] <= pctl["severe"] else "drought" if s["htc"] <= pctl["drought"] else "none",
@@ -249,11 +267,11 @@ def analyse_cell(cell):
     # stress profile from the FULL record (formulas: docs/research/kazakhstan-agronomy/README.md, on the 1991-2020 normal)
     clip = lambda x: min(1.0, max(0.0, x))
     profile = {"rainMeanMm": round(normals["rainMayAug"], 1),
-               "water": round(float(np.mean([clip((1 - S[y]["rainMayAug"] / normals["rainMayAug"]) / K.WATER_FULL_DEFICIT) for y in years])), 2),
+               "water": round(float(np.mean([clip((1 - S[y]["rainMayAug"] / max(normals["rainMayAug"], 1e-9)) / K.WATER_FULL_DEFICIT) for y in years])), 2),
                "heat": round(float(np.mean([clip((S[y]["hotDays30"] - K.HEAT_RANGE[0]) / K.HEAT_RANGE[1]) for y in years])), 2),
                "frost": round(float(np.mean([S[y]["_frost"] for y in years])), 2),
                "years": [years[0], years[-1]]}
-    return climate, profile, flags
+    return climate, profile, flags, hot_before
 
 
 def trend_note(years, rain, hot):
@@ -266,7 +284,8 @@ def trend_note(years, rain, hot):
             slope = theil_sen(y) * 10
             found.append(f"{name} has {'risen' if slope > 0 else 'fallen'} by about {abs(slope):.0f}{unit} per decade (p = {p:.2f})")
     if not found:
-        return f"NASA POWER shows no clear trend in growing-season rain or temperature for this grid cell ({span}). We make no trend claim."
+        return (f"NASA POWER shows no clear trend in May to August rain or in the number of days at {K.HOT_DAY:.0f} °C or more for this grid cell ({span}). "
+                "Mean temperature was not tested. We make no trend claim.")
     rest = "" if len(found) == 2 else "; the other measure shows no clear trend"
     return (f"In the NASA POWER record for this grid cell ({span}), " + " and ".join(found) + rest +
-            ". One modelled dataset for a 50 km cell is not proof of a climate trend.")
+            ". Mean temperature was not tested. One modelled dataset for a 50 km cell is not proof of a climate trend.")

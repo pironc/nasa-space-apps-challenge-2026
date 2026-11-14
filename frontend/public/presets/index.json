@@ -3,7 +3,7 @@
   "id": "kostanay-fyodorov",
   "name": "Fyodorov north",
   "region": "Kostanay region",
-  "note": "Outline traced by eye on satellite imagery, not a surveyed boundary. Land use for 2019 and 2023 was declared as fallow because the satellite curve alone cannot tell weedy fallow from a failed crop.",
+  "note": "Outline traced by eye on satellite imagery, not a surveyed boundary. For this demo we assumed fallow in 2019 and 2023 from the look of the imagery; no farmer was consulted.",
   "rotation": "fwwb",
   "areaHa": 414.6,
   "geometry": {
@@ -78,7 +78,7 @@
   "id": "akmola-shortandy",
   "name": "Shortandy west",
   "region": "Akmola region",
-  "note": "Outline traced by eye on satellite imagery, not a surveyed boundary. Land use was declared as fallow for 2021 and as crop for 2023 because the satellite curve alone cannot tell a failed crop from a weedy fallow.",
+  "note": "Outline traced by eye on satellite imagery, not a surveyed boundary. For this demo we assumed fallow in 2021 and a crop in 2023; the satellite curve alone cannot tell a failed crop from a weedy fallow, and no farmer was consulted.",
   "rotation": "wwww",
   "areaHa": 334.2,
   "geometry": {
@@ -125,7 +125,7 @@
   "id": "nk-tayinsha",
   "name": "Tayinsha",
   "region": "North Kazakhstan region",
-  "note": "Outline traced by eye on satellite imagery, not a surveyed boundary. Land use for 2020 was declared as fallow, which the satellite curve also shows.",
+  "note": "Outline traced by eye on satellite imagery, not a surveyed boundary. For this demo we assumed fallow in 2020, which the satellite curve also shows; no farmer was consulted.",
   "rotation": "wwww",
   "areaHa": 449.8,
   "geometry": {
