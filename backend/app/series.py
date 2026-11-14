@@ -1,7 +1,9 @@
 """Per-field satellite series from the Planetary Computer statistics endpoint: no key, no raster libraries.
 
-Sentinel-2 L2A: one POST per scene returns the clear fraction, the snow fraction and the field MEAN of
-NDVI, NDMI and NBR2 over clear pixels.  MODIS 13Q1: one POST per 16-day composite, back to 2000."""
+Sentinel-2 L2A: one POST per scene returns the clear fraction, the snow fraction and the field MEDIAN of
+NDVI, NDMI and NBR2 over clear pixels, read from the endpoint's histogram (masked pixels are filled with
+MASK_FILL, which falls outside the histogram range; the endpoint's own median counts them, so it is not used).
+MODIS 13Q1: one POST per 16-day composite, back to 2000."""
 import asyncio
 
 import httpx
@@ -20,13 +22,30 @@ class UpstreamError(RuntimeError):
 
 
 def s2_expression(baseline: str) -> str:
-    """Band 1 = clear mask, band 2 = snow mask, bands 3-5 = NDVI, NDMI, NBR2 where clear, else 0.
-    Field mean over clear pixels = mean(band) / mean(mask).
+    """Band 1 = clear mask, band 2 = snow mask, bands 3-5 = NDVI, NDMI, NBR2 where clear, else MASK_FILL.
     Baseline >= 04.00 stores reflectance * 10000 + 1000 in EVERY band: a sum of two bands loses 2000,
     a difference of two bands is unaffected."""
     d = "-2000" if float(baseline) >= K.OFFSET_BASELINE else ""
-    idx = lambda a, b: f"where({CLEAR},({a}-{b})/({a}+{b}{d}),0)"
+    idx = lambda a, b: f"where({CLEAR},({a}-{b})/({a}+{b}{d}),{K.MASK_FILL})"
     return ";".join([f"where({CLEAR},1,0)", f"where(SCL=={K.SNOW_SCL},1,0)", idx("B08", "B04"), idx("B08", "B11"), idx("B11", "B12")])
+
+
+def hist_quantiles(counts, edges, qs):
+    """Quantiles from a histogram, linear inside a bin. None for an empty histogram."""
+    n = sum(counts)
+    if not n:
+        return [None] * len(qs)
+    out = []
+    for q in qs:
+        target, cum = q * n, 0.0
+        for c, lo, hi in zip(counts, edges[:-1], edges[1:]):
+            if c and cum + c >= target:
+                out.append(lo + (hi - lo) * (target - cum) / c)
+                break
+            cum += c
+        else:
+            out.append(edges[-1])
+    return out
 
 
 async def _post(c, url, **kw):
@@ -94,13 +113,14 @@ async def s2_series(c, geometry):
     async def one(it):
         p = it["properties"]
         s = await _stats(c, feature, {"collection": "sentinel-2-l2a", "item": it["id"], "asset_as_band": "true", "max_size": K.MAX_SIZE,
-                                      "expression": s2_expression(p.get("s2:processing_baseline") or "0")})
+                                      "histogram_bins": K.HIST_BINS, "histogram_range": "-1,1", "expression": s2_expression(p.get("s2:processing_baseline") or "0")})
         if s is None or s is FAILED:
             return s
         m = s[0]["mean"] or 0.0
         row = {"date": p["datetime"][:10], "px": s[0]["valid_pixels"], "clear": m, "snow": s[1]["mean"] or 0.0}
         for name, band in zip(("ndvi", "ndmi", "nbr2"), s[2:]):
-            row[name] = round(band["mean"] / m, 4) if m > 0 else None
+            q = hist_quantiles(*band["histogram"], [0.5])[0]             # median of the clear pixels
+            row[name] = None if q is None else round(q, 4)
         return row
 
     rows = await _all(one(v[1]) for v in best.values())
@@ -117,21 +137,26 @@ async def s2_series(c, geometry):
 
 
 async def modis_series(c, geometry):
-    """-> rows {date, ndvi, reliability}: MOD13Q1 (Terra) composites starting inside MODIS_WINDOW, from 2000."""
+    """-> rows {date, ndvi (field mean), reliability (worst pixel)}: MOD13Q1 (Terra) composites starting inside MODIS_WINDOW, from 2000."""
     feature = {"type": "Feature", "properties": {}, "geometry": geometry}
     items = await _search(c, "modis-13Q1-061", geometry, f"{K.MODIS_FIRST_YEAR}-01-01", ["start_datetime"])
-    todo = {}                          # many items lack the platform property: filter on the id; one per date
+    todo = {}                          # many items lack the platform property: filter on the id
     for it in items:
         d = it["properties"]["start_datetime"][:10]
         if it["id"].startswith("MOD13Q1") and K.MODIS_WINDOW[0] <= (int(d[5:7]), int(d[8:10])) <= K.MODIS_WINDOW[1]:
-            todo.setdefault(d, it["id"])
+            todo.setdefault(d, []).append(it["id"])
 
-    async def one(d, item):
-        s = await _stats(c, feature, [("collection", "modis-13Q1-061"), ("item", item),
-                                      ("assets", "250m_16_days_NDVI"), ("assets", "250m_16_days_pixel_reliability")])
-        if s is None or s is FAILED or s[0]["mean"] is None:
-            return s if s is FAILED else None
-        # scale 0.0001 applied here: unscale=true on the API multiplies instead. reliability: 0 good, 1 marginal, 2 snow, 3 cloud
-        return {"date": d, "ndvi": round(s[0]["mean"] * 1e-4, 4), "reliability": round(s[1]["mean"], 2)}
+    async def one(d, ids):
+        # A field near a tile edge matches two tiles and one answers null: keep the item that has data.
+        for item in sorted(ids, reverse=True):                 # ponytail: the empty tile costs one wasted call per date; probe tiles once if it matters
+            s = await _stats(c, feature, [("collection", "modis-13Q1-061"), ("item", item),
+                                          ("assets", "250m_16_days_NDVI"), ("assets", "250m_16_days_pixel_reliability")])
+            if s is FAILED:
+                return s
+            if s and s[0]["mean"] is not None and s[1]["mean"] is not None:
+                # scale 0.0001 applied here: unscale=true on the API multiplies instead.
+                # reliability: 0 good, 1 marginal, 2 snow, 3 cloud; the field MAX, so one cloudy pixel rejects the composite
+                return {"date": d, "ndvi": round(s[0]["mean"] * 1e-4, 4), "reliability": s[1]["max"]}
+        return None
 
     return sorted(await _all(one(d, i) for d, i in todo.items()), key=lambda r: r["date"])

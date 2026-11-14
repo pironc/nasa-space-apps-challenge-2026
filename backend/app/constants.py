@@ -8,8 +8,9 @@ from pathlib import Path
 # ---- storage and limits -------------------------------------------------------------------------
 DATA_DIR = Path(os.environ.get("DATA_DIR") or Path(__file__).resolve().parents[1] / ".data")  # cache root
 SCHEMA = 1                      # FieldAnalysis.schema; a cached file with another value is rebuilt
+RULES = 2                       # version of the analysis rules, part of every field's cache key: raise it when a rule changes
 USER_AGENT = "fieldshift/0.1"   # client name sent to outside services (never a person or a repository)
-CONCURRENCY = 20                # one global limit on calls to the Planetary Computer, across all users
+CONCURRENCY = 40                # one global limit on calls to the Planetary Computer, across all users
 RETRIES = 3                     # tries per upstream call on HTTP 429/502/503/504 and timeouts
 MAX_FAILED_SHARE = 0.10         # more than this share of scenes unanswered: report the upstream as down
 MAX_BUILDS = 2                  # first-time field builds running at once before the API answers 429
@@ -25,6 +26,8 @@ SEASON_MONTHS = (5, 9)          # May to September: snow-free, covers sowing to 
 CLEAR_SCL = (4, 5)              # scene classification classes counted as a clear view: vegetation, bare soil
 SNOW_SCL = 11                   # class "snow or ice"; in summer it is nearly always bright cloud
 OFFSET_BASELINE = 4.0           # processing baseline from which every band carries +1000 (reflectance offset)
+MASK_FILL = -9                  # value written where a pixel is not clear: outside the histogram range, so it drops out
+HIST_BINS = 400                 # histogram of each index over -1 to 1 (0.005 wide bins); the field median is read from it
 MAX_SIZE = 512                  # statistics are computed on at most 512 x 512 pixels (same value, any field size)
 MIN_CLEAR = 0.75                # accept a scene when at least 75 % of the field is clear ...
 MAX_SNOW = 0.05                 # ... and under 5 % of it is flagged snow
@@ -42,28 +45,28 @@ FALLOW_MAX = 0.30               # 21 Jun-10 Aug maximum under this: the year rea
 MIN_GREEN_DEKADS = 3            # fewer dekads at GREEN or more: ambiguous (weed flush or failed crop)
 MIN_MID_DEKADS = 3              # fewer dekads with data in 21 Jun-10 Aug: land use unknown
 MIN_SEASON_DEKADS = 5           # fewer dekads with data in the whole season: no verdict at all
-ANNUAL_PRE_MAX = 0.30           # multi-year median May NDVI under this: the field is annual cropland
 MIN_BASELINE_YEARS = 3          # other cropped years needed before a season is compared with them
 MIN_BASELINE_PEAK = 0.35        # a usual peak under this is too low to compare against
 
-# ---- verdicts ------------------------------------------------------------------------------------
-BARE_RUN_DEKADS = 3             # 30 days in a row under BARE_NDVI inside 21 Jun-31 Aug: bare-soil finding
-DEFICIT_WATCH = 0.90            # peak at or under 90 % of the usual peak: watch
-DEFICIT_WARNING = (0.80, 0.65)  # warning: peak ratio at or under 0.80, or season-growth ratio at or under 0.65
-DEFICIT_SEVERE = (0.65, 0.50)   # severe: peak ratio at or under 0.65, or season-growth ratio at or under 0.50
-MIN_SHARED_DEKADS = 10          # dekads both curves must share before the season-growth ratio is used
+# ---- verdicts (peak and season total are read over 1 June to 20 August only) ---------------------
+BARE_RUN_DEKADS = 3             # 30 days in a row under BARE_NDVI (and tilled, see TILLED_NBR2): bare-soil finding
+DEFICIT_WATCH = 0.90            # windowed peak at or under 90 % of the usual peak: watch
+DEFICIT = ((0.65, "severe"), (0.80, "warning"), (DEFICIT_WATCH, "watch"))   # peak ratio at or under the edge
+TOTAL_GATE = 0.90               # ... and only when the green cover summed over the window is under 90 % of usual
+MIN_SHARED_DEKADS = 6           # window dekads (of 8) both curves must share before a season is judged
+MIN_REAL_MID_DEKADS = 3         # dekads in 21 Jun-10 Aug that need a real (not interpolated) pass before a season is judged
 PEAKED_DROP = 0.05              # in season: the peak counts as passed once NDVI is 0.05 under it, 2 dekads later
-NDMI_DROP = (-0.15, -0.25)      # canopy moisture (NDMI) at peak against usual: supporting, strongly supporting
-NDMI_DRY_MAX = 0.15             # ... and only when NDMI at peak is itself under this
+NDMI_DROP = 0.15                # canopy moisture (NDMI) at peak this far under usual: one supporting line, never a finding
 
 # ---- MODIS long record (NASA MOD13Q1, 250 m, since 2000) -----------------------------------------
 MODIS_FIRST_YEAR = 2000         # first MODIS Terra season
 MODIS_WINDOW = ((6, 1), (8, 15))   # yearly peak over 16-day composites STARTING 1 Jun to 15 Aug (the next one is mostly September)
-MODIS_MAX_RELIABILITY = 1.0     # use composites whose field-mean pixel reliability is 0 (good) to 1 (marginal)
-MODIS_MIN_COMPOSITES = 3        # fewer usable composites in a summer: the year is unknown
+MODIS_MAX_RELIABILITY = 1.0     # use composites whose worst pixel reliability is 0 (good) or 1 (marginal)
+MODIS_MIN_COMPOSITES = 4        # fewer usable composites (of 5) in a summer: the year is unknown
 MODIS_GAP_YEARS = (2025,)       # the Planetary Computer archive has no composites from 2025-06-26 to 2025-11-17
-MODIS_FALLOW_PEAK = 0.41        # MODIS peak under this reads as fallow: FALLOW_MAX plus the 0.11 MODIS reads higher than Sentinel-2
-MODIS_MIN_HA = 100.0            # 250 m pixels mix in the neighbours of smaller fields: no MODIS record under this
+MODIS_BARE_PEAK = 0.40          # before 2018 only (land use not known): a MODIS peak under this reads as a bare summer
+                                # (FALLOW_MAX plus the 0.1 MODIS reads higher than Sentinel-2)
+MODIS_MIN_HA = 150.0            # 250 m pixels mix in the neighbours of smaller fields: no MODIS record under this
 
 # ---- climate (NASA POWER daily, one grid cell) ---------------------------------------------------
 POWER_PARAMS = "T2M,T2M_MAX,T2M_MIN,PRECTOTCORR,GWETROOT,GWETTOP,EVLAND"   # one request per cell, default time standard
@@ -74,24 +77,20 @@ CLIMATE_FIRST_YEAR = 1991       # first season listed, tested for trend and coun
 HOT_DAY = 30.0                  # a hot day: maximum temperature of 30 C or more
 WET_DAY = 1.0                   # a day with under 1 mm of rain counts as dry (WMO dry-spell convention)
 HTC_ACTIVE_T = 10.0             # the hydrothermal coefficient only counts days with a mean above 10 C
-HTC_CLASSES = ((0.4, "very severe drought"), (0.6, "severe drought"), (0.8, "moderate drought"),
-               (1.0, "mild drought"), (1.5, "adequate moisture"))   # upper edges; above the last: "excess moisture"
-SOWING = (5, 15)                # assumed sowing date, 15 May; the crop stages below are counted from it
-GDD = {"emergence": 140, "jointing": 620, "anthesis": 850, "maturity": 1600}   # degree days above 0 C (Miller et al. 2001)
+HTC_CLASSES = ((0.4, "very dry"), (0.6, "dry"), (0.8, "moderately dry"), (1.0, "slightly dry"), (1.5, "adequate"))
+                                # moisture supply by upper edge; above the last: "wet". Never called a drought.
+DROUGHT_PCTL = (20, 10)         # a drought by the cell's own history: May-Aug HTC at or under its 20th percentile; severe: 10th
+SOWINGS = ((5, 10), (5, 20), (5, 30))   # every stage-dependent test runs for these sowing dates; the middle one is the default
+GDD = {"emergence": 140, "jointing": 700, "anthesis": 1000, "maturity": 1850}   # degree days above 0 C from sowing; estimates, +/- 10 days
 FLOWER_HALF_WINDOW = 7          # flowering window: estimated anthesis plus and minus 7 days
 HARVEST_WINDOW = ((8, 15), (9, 20))   # harvest weather is judged over 15 Aug to 20 Sep
 AUTUMN_FROST_WINDOW = ((8, 1), (10, 31))   # first day at 0 C or below searched from 1 Aug to 31 Oct
-RAIN_PRE_PCT = (50, 70)         # rain sowing-to-flowering at or under 50 % of normal: 2 points; 70 %: 1 point
-HTC_PRE = (0.4, 0.6)            # hydrothermal coefficient sowing-to-flowering under 0.4: 2 points; under 0.6: 1
-DRY_SPELL_DAYS = 15             # a dry spell this long before flowering, and in the top quarter of years: 1 point
-GWET_DRY_PCTL = 20              # root-zone wetness in the driest fifth of years: 1 point
-HEAT_FLOWER = (31.0, 5)         # 5 or more days at 31 C around flowering, and top quarter of years: 2 points
-HEAT_SEVERE = (35.0, 2)         # 2 or more days at 35 C around flowering, or in grain fill and top quarter: 2 points
+DRY_WINDOW_DAYS = 40            # water: rain in the driest 40-day window ...
+DRY_STARTS = range(0, 31, 5)    # ... among windows starting 0, 5, ... 30 days after sowing, as a share of the normal for those dates
+DRY_RATIO, DRY_PCTL = 0.40, 20  # flagged at or under 40 % of normal AND at or under the cell's own 20th percentile
+HEAT_DAYS, HEAT_PCTL = 90, 90   # heat: hot days from sowing to sowing + 90 days, flagged at or above the cell's 90th percentile
 FROST_SEEDLING, FROST_FLOWER, FROST_FILL = -4.0, 0.0, -2.0   # damaging minimum temperature by stage (K-State C646)
-WET_PCTL = (80, 80, 85)         # harvest rain, wet days and topsoil wetness percentiles: 1 point each
-TOP_QUARTER = 75                # "top quarter of years" percentile
-FLAG_AT = {"water_deficit": 3, "heat": 2, "frost": 2, "wet_harvest": 2}   # points needed to name a cause
-HIGH_CONFIDENCE_EXTRA = 2       # this many points above the flag level: confidence "high" instead of "medium"
+WET_PCTL = (80, 80, 85)         # harvest rain, wet days and topsoil wetness percentiles; two of the three flag a wet harvest
 TREND_P = 0.05                  # Mann-Kendall p under this: the trend is called statistically clear
 
 # ---- stress profile (0 to 1 each) ----------------------------------------------------------------

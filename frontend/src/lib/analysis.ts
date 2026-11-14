@@ -10,7 +10,11 @@ export type Severity = "info" | "watch" | "warning" | "severe"
 
 /** A finding about one finished season. Never a live notification. */
 export type Verdict = {
-  type: "VEG_DEFICIT" | "LOW_CANOPY_MOISTURE" | "BARE_SOIL" | "INSUFFICIENT_DATA" | "NO_BASELINE"
+  /**
+   * VEG_DEFICIT and BARE_SOIL are findings. LAND_USE_UNCLEAR asks the user whether a low year was a
+   * failed crop or fallow (severity info, no judgement). NOTE is an explanatory line (severity info).
+   */
+  type: "VEG_DEFICIT" | "BARE_SOIL" | "LAND_USE_UNCLEAR" | "NOTE" | "INSUFFICIENT_DATA" | "NO_BASELINE"
   severity: Severity
   /** Short plain-language headline, e.g. "Peak greenness well below this field's normal". */
   title: string
@@ -20,17 +24,25 @@ export type Verdict = {
 
 export type Season = {
   year: number
-  /** 15 ten-day values, 1 May to 30 Sep: field mean of cloud-free pixels, null where no clear pass. */
+  /** 15 ten-day values, 1 May to 30 Sep: field median of cloud-free pixels, null where no clear pass. */
   ndvi: (number | null)[]
   ndmi: (number | null)[]
   /** Accepted satellite passes per ten-day bin. */
   obs: number[]
   /** Inferred from the curve alone. Fallow and failed crop can look alike. */
   use: LandUse
+  /** Land use declared by the field's owner (presets ship one where the curve is unclear). Wins over `use`. */
+  declared: "crop" | "fallow" | null
+  /** Highest NDVI between 1 June and 20 August. */
   peak: number | null
   /** Index into `ndvi`. */
   peakDekad: number | null
   verdicts: Verdict[]
+  /**
+   * How the regional weather record relates to this season's greenness, in fixed cautious wording.
+   * Null when there is nothing to say (no deficit and no weather flag).
+   */
+  explanation: string | null
 }
 
 /** The field's own normal, from its other cropped years (Sentinel-2). */
@@ -47,7 +59,8 @@ export type ModisYear = { year: number; peak: number | null; use: "cropped" | "f
 
 export type Cause = {
   type: "water_deficit" | "heat" | "frost" | "wet_harvest"
-  confidence: "low" | "medium" | "high"
+  /** False when the flag appears for only some plausible sowing dates: show the numbers, not a cause. */
+  robust: boolean
   /** Plain-language evidence lines with numbers. */
   evidence: string[]
 }
@@ -62,9 +75,15 @@ export type ClimateSeason = {
   rainOctAprPct: number
   /** Days with maximum temperature of 30 °C or more, May to August. */
   hotDays30: number
-  /** Selyaninov hydrothermal coefficient, May to August. Below 0.6 is severe drought. */
+  /** Selyaninov hydrothermal coefficient, May to August: rain set against heat. Around 1 is enough moisture. */
   htc: number
+  /** Moisture supply class: very dry, dry, moderately dry, slightly dry, adequate, wet. */
   htcClass: string
+  /** Rank among all seasons in the record, 1 = driest. */
+  htcRank: number
+  htcRankOf: number
+  /** A drought only by this cell's own history: HTC at or below its 20th percentile (severe: 10th). */
+  drought: "none" | "drought" | "severe"
   tmaxPeak: number
   tmaxPeakDate: string
   longestDrySpell: number
@@ -98,7 +117,7 @@ export type FieldAnalysis = {
     cell: { lat: number; lon: number }
     normals: { rainMayAug: number; rainOctApr: number; hotDays30: number; htc: number }
     seasons: ClimateSeason[]
-    /** Seasons since 1991 flagged as water deficit. */
+    /** Seasons since 1991 with `drought` other than "none". */
     droughtYears: number[]
     trendNote: string
   }
@@ -117,6 +136,8 @@ export type Preset = {
   geometry: Polygon
   /** [stressed year, good year] to open the demo on. */
   demoYears: [number, number]
+  /** Year to land use, for seasons the curve cannot classify on its own. */
+  declaredUse: Record<string, "crop" | "fallow">
 }
 
 // --- Rotation comparison (computed in the browser, see lib/rotation.ts) ------
@@ -139,6 +160,8 @@ export type Strategy = {
   rotation: string[]
   /** Human-readable, e.g. "Wheat, flax, wheat, barley". */
   rotationLabel: string
+  /** How well this rotation is supported: "Local rotation trial", "Crops trialled locally, rotation not" or "Judgement". */
+  evidenceGrade: string
   indicators: Indicator[]
   why: string[]
   evidence: string[]

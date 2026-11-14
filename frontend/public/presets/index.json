@@ -3,32 +3,64 @@
   "id": "kostanay-fyodorov",
   "name": "Fyodorov north",
   "region": "Kostanay region",
-  "note": "Placeholder outline: a rectangle on cropland, not a surveyed field boundary. Drought year 2021 against the good year 2024.",
-  "rotation": "wwww",
-  "areaHa": 716.7,
+  "note": "Outline traced by eye on satellite imagery, not a surveyed boundary. Land use for 2019 and 2023 was declared as fallow because the satellite curve alone cannot tell weedy fallow from a failed crop.",
+  "rotation": "fwwb",
+  "areaHa": 414.6,
   "geometry": {
    "type": "Polygon",
    "coordinates": [
     [
      [
-      62.7296,
-      53.788
+      62.677587,
+      53.765468
      ],
      [
-      62.7704,
-      53.788
+      62.704999,
+      53.765468
      ],
      [
-      62.7704,
-      53.812
+      62.719896,
+      53.782352
      ],
      [
-      62.7296,
-      53.812
+      62.696233,
+      53.782262
      ],
      [
-      62.7296,
-      53.788
+      62.693447,
+      53.781751
+     ],
+     [
+      62.689393,
+      53.78115
+     ],
+     [
+      62.685086,
+      53.78106
+     ],
+     [
+      62.685086,
+      53.779468
+     ],
+     [
+      62.681539,
+      53.779468
+     ],
+     [
+      62.681539,
+      53.781511
+     ],
+     [
+      62.680374,
+      53.781811
+     ],
+     [
+      62.677587,
+      53.782713
+     ],
+     [
+      62.677587,
+      53.765468
      ]
     ]
    ]
@@ -36,6 +68,99 @@
   "demoYears": [
    2021,
    2024
-  ]
+  ],
+  "declaredUse": {
+   "2019": "fallow",
+   "2023": "fallow"
+  }
+ },
+ {
+  "id": "akmola-shortandy",
+  "name": "Shortandy west",
+  "region": "Akmola region",
+  "note": "Outline traced by eye on satellite imagery, not a surveyed boundary. Land use was declared as fallow for 2021 and as crop for 2023 because the satellite curve alone cannot tell a failed crop from a weedy fallow.",
+  "rotation": "wwww",
+  "areaHa": 334.2,
+  "geometry": {
+   "type": "Polygon",
+   "coordinates": [
+    [
+     [
+      70.730874,
+      51.712714
+     ],
+     [
+      70.753817,
+      51.712714
+     ],
+     [
+      70.753817,
+      51.718895
+     ],
+     [
+      70.753144,
+      51.731867
+     ],
+     [
+      70.730874,
+      51.731867
+     ],
+     [
+      70.730874,
+      51.712714
+     ]
+    ]
+   ]
+  },
+  "demoYears": [
+   2023,
+   2024
+  ],
+  "declaredUse": {
+   "2021": "fallow",
+   "2023": "crop"
+  }
+ },
+ {
+  "id": "nk-tayinsha",
+  "name": "Tayinsha",
+  "region": "North Kazakhstan region",
+  "note": "Outline traced by eye on satellite imagery, not a surveyed boundary. Land use for 2020 was declared as fallow, which the satellite curve also shows.",
+  "rotation": "wwww",
+  "areaHa": 449.8,
+  "geometry": {
+   "type": "Polygon",
+   "coordinates": [
+    [
+     [
+      69.56246,
+      53.886798
+     ],
+     [
+      69.598692,
+      53.886798
+     ],
+     [
+      69.598438,
+      53.903862
+     ],
+     [
+      69.56246,
+      53.903862
+     ],
+     [
+      69.56246,
+      53.886798
+     ]
+    ]
+   ]
+  },
+  "demoYears": [
+   2021,
+   2024
+  ],
+  "declaredUse": {
+   "2020": "fallow"
+  }
  }
 ]

@@ -7,6 +7,8 @@ from pathlib import Path
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
+from typing import Literal
+
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -21,6 +23,7 @@ _building = 0                          # first-time builds in flight (one worker
 
 class AnalyseRequest(BaseModel):
     geometry: dict
+    declaredUse: dict[int, Literal["crop", "fallow"]] = {}   # year -> land use stated by the user; wins over the inferred label
 
 
 @app.get("/api/health")
@@ -41,7 +44,7 @@ async def analyse_field(req: AnalyseRequest):
         ring, _ = validate(req.geometry)
     except ValueError as e:
         raise HTTPException(422, str(e)) from None
-    fid = field_hash(ring)
+    fid = field_hash(ring, req.declaredUse)
     path = K.DATA_DIR / "fields" / f"{fid}.json"
     cached = None
     if path.exists():
@@ -52,7 +55,7 @@ async def analyse_field(req: AnalyseRequest):
         raise HTTPException(429, "The server is already building other fields. Please try again in a minute.")
     _building += 1
     try:
-        result = await analyse(req.geometry, fid)
+        result = await analyse(req.geometry, fid, declared_use=req.declaredUse)
     except (UpstreamError, httpx.HTTPError) as e:
         if cached and cached.get("schema") == K.SCHEMA:
             return cached                                  # upstream is down: an older analysis beats an error

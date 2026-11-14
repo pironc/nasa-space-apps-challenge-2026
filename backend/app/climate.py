@@ -94,7 +94,8 @@ def mann_kendall_p(y):
 
 
 def htc_class(h):
-    return next((name for edge, name in K.HTC_CLASSES if h < edge), "excess moisture")
+    """Moisture supply class. A dry class is this climate's normal, not a drought (see DROUGHT_PCTL)."""
+    return next((name for edge, name in K.HTC_CLASSES if h < edge), "wet")
 
 
 def _htc(p, t):
@@ -105,13 +106,15 @@ def _htc(p, t):
 
 # ---------- the analysis ----------
 def analyse_cell(cell):
-    """-> (the `climate` block of the contract, profile inputs {"rainMeanMm", "water", "heat", "frost", "years"})."""
+    """-> (the `climate` block of the contract, profile inputs {"rainMeanMm", "water", "heat", "frost", "years"},
+    {year: {"water_deficit" or "heat": the date by which the season was already flagged}} for the robust flags).
+    Every percent, percentile and "usual" refers to the 1991-2020 values of this cell."""
     raw = {k: np.array([np.nan if v is None else v for v in a], float) for k, a in cell["data"].items()}
     ok = np.flatnonzero(np.isfinite(raw["T2M"]) & np.isfinite(raw["PRECTOTCORR"]))
     last_day = ORIGIN + int(ok[-1]) * DAY
     pad = (dt.date(last_day.year, 12, 31) - ORIGIN).days + 1 - len(raw["T2M"])     # windows may reach past the last day served
-    t, tx, tn, p, groot, gtop = (np.concatenate([raw[k], np.full(max(pad, 0), np.nan)])
-                                 for k in ("T2M", "T2M_MAX", "T2M_MIN", "PRECTOTCORR", "GWETROOT", "GWETTOP"))
+    t, tx, tn, p, gtop = (np.concatenate([raw[k], np.full(max(pad, 0), np.nan)])
+                          for k in ("T2M", "T2M_MAX", "T2M_MIN", "PRECTOTCORR", "GWETTOP"))
     sl = lambda a, b: slice((a - ORIGIN).days, (b - ORIGIN).days + 1)              # inclusive window of days
     # a season counts once its data reach 30 September
     years = [y for y in range(K.POWER_START_YEAR, last_day.year + 1) if dt.date(y, 9, 30) <= last_day]
@@ -142,84 +145,106 @@ def analyse_cell(cell):
         mean = float(np.mean(ref))
         return v, (100 * v / mean if mean else float("nan")), pct_rank(v, ref)
 
-    def causes(y):
-        sow = dt.date(y, *K.SOWING)
-        grow = sl(sow, dt.date(y, 10, 15))
-        gdd = np.cumsum(np.maximum(np.nan_to_num(t[grow]), 0))                     # degree days above 0 C from sowing
-        at = lambda stage: sow + int(min(np.searchsorted(gdd, K.GDD[stage]), len(gdd) - 1)) * DAY
-        emergence, jointing, anthesis, maturity = (at(k) for k in ("emergence", "jointing", "anthesis", "maturity"))
-        a0, a1 = anthesis - K.FLOWER_HALF_WINDOW * DAY, anthesis + K.FLOWER_HALF_WINDOW * DAY   # flowering window
-        pre, fill = (sow, a1), (a1 + DAY, max(maturity, a1 + DAY))                 # sets grain number; sets grain weight
-        harvest = (dt.date(y, *K.HARVEST_WINDOW[0]), dt.date(y, *K.HARVEST_WINDOW[1]))
-        rain = lambda w: float(np.nansum(p[w]))
-        sc = {k: 0 for k in K.FLAG_AT}
-        ev = {k: [] for k in K.FLAG_AT}
+    # Sowing-dependent descriptors for every year at once, so each year is set against the cell's own 1991-2020 values.
+    bi = [years.index(y) for y in base]
+    listed = [i for i, y in enumerate(years) if y >= K.CLIMATE_FIRST_YEAR]
+    day = lambda d: f"{d.day} {d:%B}"
+    D = {}
+    for md in K.SOWINGS:
+        sows = [dt.date(y, *md) for y in years]
+        # rain in each 40-day window (rows: start 0, 5, ... 30 days after sowing), as a share of the normal for the same dates
+        mm = np.array([[np.nansum(p[sl(d + k * DAY, d + (k + K.DRY_WINDOW_DAYS - 1) * DAY)]) for d in sows] for k in K.DRY_STARTS])
+        share = mm / mm[:, bi].mean(1, keepdims=True)
+        hot = np.array([tx[sl(d, d + K.HEAT_DAYS * DAY)] >= K.HOT_DAY for d in sows])
+        D[md] = {"mm": mm, "share": share, "dry_at": min(K.DRY_RATIO, float(np.percentile(share.min(0)[bi], K.DRY_PCTL))),
+                 "hot": hot, "hot_at": max(1.0, float(np.percentile(hot.sum(1)[bi], K.HEAT_PCTL)))}
 
-        def add(k, pts, text):
-            sc[k] += pts
-            ev[k].append(text)
-
-        # --- water deficit
-        v, pct, _ = ranked(rain, *pre, y)
-        if pct <= K.RAIN_PRE_PCT[1]:
-            add("water_deficit", 2 if pct <= K.RAIN_PRE_PCT[0] else 1, f"Rain from sowing to the end of flowering was {v:.0f} mm, {pct:.0f}% of normal for those weeks.")
-        h = _htc(p[sl(*pre)], t[sl(*pre)])
-        if h < K.HTC_PRE[1]:
-            add("water_deficit", 2 if h < K.HTC_PRE[0] else 1, f"The hydrothermal coefficient (rain set against heat) from sowing to flowering was {h:.2f}; under {K.HTC_PRE[1]} is severe drought.")
-        v, _, pctl = ranked(lambda w: longest_run(p[w] < K.WET_DAY), *pre, y)
-        if v >= K.DRY_SPELL_DAYS and pctl >= K.TOP_QUARTER:
-            add("water_deficit", 1, f"The longest dry spell before flowering lasted {v} days, among the longest quarter of years.")
-        wet = lambda w: float(np.nanmean(groot[w]))
-        if min(ranked(wet, a0, a1, y)[2], ranked(wet, *fill, y)[2]) <= K.GWET_DRY_PCTL:
-            add("water_deficit", 1, "Modelled root-zone soil wetness around flowering or grain fill was in the driest fifth of years.")
-        # --- heat at a sensitive stage
-        hot = lambda thr: lambda w: int(np.sum(tx[w] >= thr))
-        v = hot(K.HEAT_SEVERE[0])(sl(a0, a1))
-        if v >= K.HEAT_SEVERE[1]:
-            add("heat", 2, f"{v} days reached {K.HEAT_SEVERE[0]:.0f} °C or more around flowering.")
-        v, _, pctl = ranked(hot(K.HEAT_FLOWER[0]), a0, a1, y)
-        if v >= K.HEAT_FLOWER[1] and pctl >= K.TOP_QUARTER:
-            add("heat", 2, f"{v} days reached {K.HEAT_FLOWER[0]:.0f} °C or more around flowering, among the hottest quarter of years.")
-        v, _, pctl = ranked(hot(K.HEAT_SEVERE[0]), *fill, y)
-        if v >= K.HEAT_SEVERE[1] and pctl >= K.TOP_QUARTER:
-            add("heat", 2, f"{v} days reached {K.HEAT_SEVERE[0]:.0f} °C or more while the grain was filling, among the hottest quarter of years.")
-        # --- frost
+    def tests(y, md):
+        """One season, one sowing date -> {cause: (flagged, evidence lines, the number in a few words, date the flag was reached)}."""
+        i, d, sow = years.index(y), D[md], dt.date(y, *md)
+        out = {}
+        # --- water: the driest 40-day window after sowing
+        k = int(d["share"][:, i].argmin())
+        v, a = float(d["share"][k, i]), sow + K.DRY_STARTS[k] * DAY
+        first = np.flatnonzero(d["share"][:, i] <= d["dry_at"])
+        out["water_deficit"] = (v <= d["dry_at"],
+                                [f"The driest {K.DRY_WINDOW_DAYS} days after sowing ({day(a)} to {day(a + (K.DRY_WINDOW_DAYS - 1) * DAY)}) had {d['mm'][k, i]:.0f} mm of rain, "
+                                 f"{100 * v:.0f}% of the 1991 to 2020 mean for the same dates."],
+                                f"{100 * v:.0f}% of the usual rain in the driest {K.DRY_WINDOW_DAYS} days",
+                                sow + (K.DRY_STARTS[first[0]] + K.DRY_WINDOW_DAYS - 1) * DAY if len(first) else None)
+        # --- heat: hot days in the 90 days after sowing
+        n = d["hot"].sum(1)
+        v = int(n[i])
+        reached = np.flatnonzero(np.cumsum(d["hot"][i]) >= d["hot_at"])
+        out["heat"] = (v >= d["hot_at"],
+                       [f"{v} days reached {K.HOT_DAY:.0f} °C or more in the {K.HEAT_DAYS} days after sowing, rank {1 + int(np.sum(n[listed] > v))} of {len(listed)} "
+                        f"seasons since {K.CLIMATE_FIRST_YEAR} (1 = most hot days)."],
+                       f"{v} days at {K.HOT_DAY:.0f} °C or more in the {K.HEAT_DAYS} days after sowing",
+                       sow + int(reached[0]) * DAY if len(reached) else None)
+        # --- frost at a sensitive stage (stage dates from degree days above 0 C; estimates, plus or minus 10 days)
+        gdd = np.cumsum(np.maximum(np.nan_to_num(t[sl(sow, dt.date(y, 10, 15))]), 0))
+        emergence, jointing, anthesis, maturity = (sow + int(min(np.searchsorted(gdd, K.GDD[k]), len(gdd) - 1)) * DAY for k in K.GDD)
+        a1 = anthesis + K.FLOWER_HALF_WINDOW * DAY                                  # end of flowering
+        fill = (a1 + DAY, max(maturity, a1 + DAY))
         low = lambda a, b: float(np.nanmin(tn[sl(a, b)])) if b >= a else float("inf")
-        if (v := low(emergence, jointing - DAY)) <= K.FROST_SEEDLING:
-            add("frost", 2, f"The night minimum fell to {v:.1f} °C while the crop was at seedling stage.")
-        if (v := low(jointing, a1)) <= K.FROST_FLOWER:
-            add("frost", 3, f"The night minimum fell to {v:.1f} °C between stem elongation and flowering, the most frost-sensitive stage.")
-        if (v := low(*fill)) <= K.FROST_FILL:
-            add("frost", 2, f"The night minimum fell to {v:.1f} °C while the grain was filling.")
-        # --- excess rain at harvest
-        v, pct, pctl = ranked(rain, *harvest, y)
+        ev = [text for v, limit, text in (
+            (low(emergence, jointing - DAY), K.FROST_SEEDLING, "while the crop was at seedling stage"),
+            (low(jointing, a1), K.FROST_FLOWER, "between stem elongation and flowering, the most frost-sensitive stage"),
+            (low(*fill), K.FROST_FILL, "while the grain was filling"))
+              if v <= limit for text in [f"The night minimum fell to {v:.1f} °C {text} (stage dates are estimates, plus or minus 10 days)."]]
+        out["frost"] = (bool(ev), ev, f"lowest night temperature from emergence to maturity {low(emergence, fill[1]):.1f} °C", None)
+        # --- excess rain at harvest: fixed calendar window, so the sowing date does not matter
+        harvest = (dt.date(y, *K.HARVEST_WINDOW[0]), dt.date(y, *K.HARVEST_WINDOW[1]))
+        ev = []
+        v, pct, pctl = ranked(lambda w: float(np.nansum(p[w])), *harvest, y)
         if pctl >= K.WET_PCTL[0]:
-            add("wet_harvest", 1, f"Rain from 15 August to 20 September was {v:.0f} mm, {pct:.0f}% of normal.")
+            ev.append(f"Rain from 15 August to 20 September was {v:.0f} mm, {pct:.0f}% of the 1991 to 2020 mean.")
         v, _, pctl = ranked(lambda w: int(np.sum(p[w] >= K.WET_DAY)), *harvest, y)
         if pctl >= K.WET_PCTL[1]:
-            add("wet_harvest", 1, f"{v} days had rain in the harvest window (15 August to 20 September).")
+            ev.append(f"{v} days had rain in the harvest window (15 August to 20 September).")
         if ranked(lambda w: float(np.nanmean(gtop[w])), *harvest, y)[2] >= K.WET_PCTL[2]:
-            add("wet_harvest", 1, "Modelled topsoil wetness in the harvest window was in the wettest 15% of years.")
-        # confidence "low" is never used: it needs a regional NDVI check or a second rain source, which this build lacks
-        return [{"type": k, "confidence": "high" if sc[k] >= K.FLAG_AT[k] + K.HIGH_CONFIDENCE_EXTRA else "medium", "evidence": ev[k]}
-                for k in sc if sc[k] >= K.FLAG_AT[k]]
+            ev.append("Modelled topsoil wetness in the harvest window was in the wettest 15% of years.")
+        out["wet_harvest"] = (len(ev) >= 2, ev, "", None)
+        return out
 
-    out = []
+    def causes(y):
+        """-> (the season's causes, {cause: date} for robust dry or hot flags).
+        A cause is robust only when it is flagged for every sowing date; flagged for some, it is shown as numbers."""
+        res = [tests(y, md) for md in K.SOWINGS]
+        out, ends = [], {}
+        for k in res[0]:
+            hits = [r[k][0] for r in res]
+            if all(hits):
+                out.append({"type": k, "robust": True, "evidence": res[1][k][1]})
+                if res[0][k][3]:
+                    ends[k] = max(r[k][3] for r in res)                             # reached at every sowing date by then
+            elif any(hits):
+                out.append({"type": k, "robust": False, "evidence": [
+                    "If " + "; ".join(f"sown on {day(dt.date(y, *md))}: {r[k][2]}" for md, r in zip(K.SOWINGS, res))
+                    + f". Unusual for {sum(hits)} of the {len(hits)} sowing dates only, so this depends on the sowing date."]})
+        return out, ends
+
+    pctl = dict(zip(("drought", "severe"), np.percentile([S[y]["htc"] for y in base], K.DROUGHT_PCTL)))
+    htcs = sorted(S[years[i]]["htc"] for i in listed)
+    out, flags = [], {}
     for y in years:
         if y < K.CLIMATE_FIRST_YEAR:
             continue
         s = S[y]
+        found, flags[y] = causes(y)
         out.append({"year": y, "rainMayAug": round(s["rainMayAug"], 1), "rainMayAugPct": round(100 * s["rainMayAug"] / normals["rainMayAug"]),
                     "rainOctApr": round(s["rainOctApr"], 1), "rainOctAprPct": round(100 * s["rainOctApr"] / normals["rainOctApr"]),
                     "hotDays30": s["hotDays30"], "htc": round(s["htc"], 2), "htcClass": htc_class(s["htc"]),
+                    "htcRank": 1 + htcs.index(s["htc"]), "htcRankOf": len(htcs),
+                    "drought": "severe" if s["htc"] <= pctl["severe"] else "drought" if s["htc"] <= pctl["drought"] else "none",
                     "tmaxPeak": round(s["tmaxPeak"], 1), "tmaxPeakDate": s["tmaxPeakDate"], "longestDrySpell": s["longestDrySpell"],
-                    "firstAutumnFrost": s["firstAutumnFrost"], "causes": causes(y)})
+                    "firstAutumnFrost": s["firstAutumnFrost"], "causes": found})
 
     climate = {"cell": {"lat": cell["lat"], "lon": cell["lon"]},
                "normals": {"rainMayAug": round(normals["rainMayAug"], 1), "rainOctApr": round(normals["rainOctApr"], 1),
                            "hotDays30": round(normals["hotDays30"], 1), "htc": round(normals["htc"], 2)},
                "seasons": out,
-               "droughtYears": [s["year"] for s in out if any(c["type"] == "water_deficit" for c in s["causes"])],
+               "droughtYears": [s["year"] for s in out if s["drought"] != "none"],
                "trendNote": trend_note([s["year"] for s in out], [s["rainMayAug"] for s in out], [s["hotDays30"] for s in out])}
     # stress profile from the FULL record (formulas: docs/research/kazakhstan-agronomy/README.md, on the 1991-2020 normal)
     clip = lambda x: min(1.0, max(0.0, x))
@@ -228,12 +253,12 @@ def analyse_cell(cell):
                "heat": round(float(np.mean([clip((S[y]["hotDays30"] - K.HEAT_RANGE[0]) / K.HEAT_RANGE[1]) for y in years])), 2),
                "frost": round(float(np.mean([S[y]["_frost"] for y in years])), 2),
                "years": [years[0], years[-1]]}
-    return climate, profile
+    return climate, profile, flags
 
 
 def trend_note(years, rain, hot):
     """One honest sentence from Theil-Sen slopes and Mann-Kendall tests on May-Aug rain and hot days."""
-    span = f"from {years[0]} to {years[-1]}"
+    span = f"{years[0]} to {years[-1]}"
     found = []
     for name, unit, y in (("May to August rain", " mm", rain), (f"the number of days at {K.HOT_DAY:.0f} °C or more", " days", hot)):
         p = mann_kendall_p(y)
@@ -241,8 +266,7 @@ def trend_note(years, rain, hot):
             slope = theil_sen(y) * 10
             found.append(f"{name} has {'risen' if slope > 0 else 'fallen'} by about {abs(slope):.0f}{unit} per decade (p = {p:.2f})")
     if not found:
-        return (f"We tested May to August rain and the number of hot days ({K.HOT_DAY:.0f} °C or more) for a trend {span} and found no clear trend; "
-                "the risk is year-to-year variability.")
+        return f"NASA POWER shows no clear trend in growing-season rain or temperature for this grid cell ({span}). We make no trend claim."
     rest = "" if len(found) == 2 else "; the other measure shows no clear trend"
-    return (f"In this weather record, {span}, " + " and ".join(found) + rest +
-            "; this is one modelled dataset for a 50 km cell, so it suggests a tendency rather than proving a climate trend.")
+    return (f"In the NASA POWER record for this grid cell ({span}), " + " and ".join(found) + rest +
+            ". One modelled dataset for a 50 km cell is not proof of a climate trend.")

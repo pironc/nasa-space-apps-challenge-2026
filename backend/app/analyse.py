@@ -13,8 +13,13 @@ from . import constants as K
 
 SOILGRIDS = "https://rest.isric.org/soilgrids/v2.0/properties/query"
 MODIS_NOTE = (f"NASA MODIS at 250 m: the highest NDVI between June and late August of each year. MODIS reads about 0.1 higher than "
-              f"Sentinel-2, so compare MODIS years only with each other. A year with a peak under {K.MODIS_FALLOW_PEAK} is shown as fallow. "
-              "2025 is left out: the source archive has no MODIS data from 26 June to 17 November 2025.")
+              f"Sentinel-2 and its pixels include neighbouring land, so MODIS is compared only with MODIS. From {K.S2_FIRST_YEAR} on, a year is "
+              f"marked cropped or fallow from the Sentinel-2 curve or the declared land use. Land use before {K.S2_FIRST_YEAR} is not known: "
+              f"a summer with a MODIS peak under {K.MODIS_BARE_PEAK:.2f} is shown as bare (a fallow year or a failed crop), every other one as cropped-looking. "
+              "2025 is excluded: the source archive has no MODIS data from 26 June to 17 November 2025.")
+NO_WEATHER_REASON = ("The regional weather record does not explain the low greenness. Causes this app cannot see include a local shortfall of rain, "
+                     "hail, a frost pocket, late sowing, weeds, pests, disease, nutrition, herbicide injury, or a different crop from earlier years. "
+                     "This needs a field visit.")
 
 
 # ---------- geometry: validation, cache key, area ----------
@@ -46,8 +51,9 @@ def canonical_ring(geometry):
     return pts[i:] + pts[:i]
 
 
-def field_hash(ring):
-    return hashlib.sha256(json.dumps(ring, separators=(",", ":")).encode()).hexdigest()[:16]
+def field_hash(ring, declared_use=None):
+    """Cache key and id: the outline, the declared land use and the version of the rules."""
+    return hashlib.sha256(json.dumps([K.RULES, ring, sorted((declared_use or {}).items())], separators=(",", ":")).encode()).hexdigest()[:16]
 
 
 def area_ha(ring):
@@ -89,29 +95,49 @@ def _nums(a, nd=3):
     return [None if not np.isfinite(x) else round(float(x), nd) for x in a]
 
 
-def assemble(field_id, ring, s2_rows, cell, modis_rows=None, soil=None, today=None):
-    """Pure: fetched inputs -> the FieldAnalysis dict."""
+def explanation(deficit, ratio, flags, peak_end):
+    """How the regional weather record relates to one season's greenness, in fixed wording. None = nothing to say.
+    deficit: severity of the season's VEG_DEFICIT or None; ratio: peak / usual peak, None when the season was not judged;
+    flags: {"water_deficit" or "heat": date by which the robust flag was reached}; peak_end: last day of the peak's ten-day bin."""
+    words = lambda ks: " and ".join({"water_deficit": "dry", "heat": "hot"}[k] for k in ks)
+    if deficit in ("warning", "severe"):
+        before = [k for k in flags if flags[k] <= peak_end]       # weather after the peak cannot explain the peak
+        if not before:
+            return NO_WEATHER_REASON
+        return (f"Regional weather was unusually {words(before)} before this crop's peak (NASA POWER, about 50 km grid). That is consistent with the low "
+                "greenness on this field. The grid cannot show whether this field received the same weather."
+                + (" Dry and hot conditions came together; the data cannot say which did more harm." if len(before) == 2 else ""))
+    if flags and ratio is not None and ratio > K.DEFICIT_WATCH:
+        return f"Regional weather was unusually {words(flags)} this season, but this field's greenness stayed within its usual range."
+    return None                                                   # a watch, a fallow or unjudged year, or nothing flagged
+
+
+def assemble(field_id, ring, s2_rows, cell, modis_rows=None, soil=None, today=None, declared_use=None):
+    """Pure: fetched inputs -> the FieldAnalysis dict. declared_use: {year: "crop" | "fallow"}, wins over the inferred label."""
     today = today or dt.date.today()
     ha = area_ha(ring)
     rec = veg.records(s2_rows)
     years = range(K.S2_FIRST_YEAR, max((d.year for d in rec["date"]), default=K.S2_FIRST_YEAR) + 1)
     S = {y: veg.build_year(rec, y) for y in years}
-    M = {y: veg.metrics(S[y]) for y in years}
+    M = {y: veg.metrics(S[y], (declared_use or {}).get(y)) for y in years}
+    clim, profile, flags = climate.analyse_cell(cell)
     seasons = []
     for y in years:
         # a season still running is judged only up to the current ten-day bin
         upto = None if today >= dt.date(y, 10, 1) else max(veg.dekad_of_year(today) - K.D0, 0)
         m = M[y]
+        found, ratio = veg.verdicts(S, M, y, upto)
+        deficit = next((v["severity"] for v in found if v["type"] == "VEG_DEFICIT"), None)
         seasons.append({"year": y, "ndvi": _nums(S[y]["ndvi"]), "ndmi": _nums(S[y]["ndmi"]), "obs": [int(n) for n in S[y]["obs"]],
-                        "use": m["use"], "peak": None if m["peak_i"] < 0 else round(m["peak"], 3),
-                        "peakDekad": None if m["peak_i"] < 0 else m["peak_i"], "verdicts": veg.verdicts(S, M, y, upto)})
+                        "use": m["use"], "declared": m["declared"], "peak": None if m["peak_i"] < 0 else round(m["peak"], 3),
+                        "peakDekad": None if m["peak_i"] < 0 else m["peak_i"], "verdicts": found,
+                        "explanation": explanation(deficit, ratio, flags.get(y, {}), veg.dekad_end(y, m["peak_i"]))})
     b = veg.baseline(S, M)
-    clim, profile = climate.analyse_cell(cell)
-    judged = [s for s in seasons if s["use"] != "unknown"]
-    bare = [s for s in judged if s["use"] == "fallow" or any(v["type"] == "BARE_SOIL" for v in s["verdicts"])]
+    judged = [s for s in seasons if M[s["year"]]["eff"] not in ("unknown", "ambiguous")]   # seasons whose land use is known
+    bare = [s for s in judged if M[s["year"]]["eff"] == "fallow" or any(v["type"] == "BARE_SOIL" for v in s["verdicts"])]
     modis = None
     if modis_rows and ha >= K.MODIS_MIN_HA:
-        myears, mmed = veg.modis_years(modis_rows)
+        myears, mmed = veg.modis_years(modis_rows, {y: M[y]["eff"] for y in years})
         if mmed is not None:
             modis = {"years": myears, "peakMedian": mmed, "note": MODIS_NOTE}
     return {
@@ -126,8 +152,9 @@ def assemble(field_id, ring, s2_rows, cell, modis_rows=None, soil=None, today=No
     }
 
 
-async def analyse(geometry, field_id, include_modis=False, include_soil=False) -> dict:
-    """Fetch everything for one field (Sentinel-2, NASA POWER, optionally MODIS and soil) and analyse it."""
+async def analyse(geometry, field_id, include_modis=False, include_soil=False, declared_use=None) -> dict:
+    """Fetch everything for one field (Sentinel-2, NASA POWER, optionally MODIS and soil) and analyse it.
+    declared_use: {year: "crop" | "fallow"} as stated by the field's owner."""
     ring = canonical_ring(geometry)
     geom = {"type": "Polygon", "coordinates": [[list(p) for p in ring + ring[:1]]]}      # what leaves the server: rounded outline only
     lon, lat = sum(x for x, _ in ring) / len(ring), sum(y for _, y in ring) / len(ring)  # ponytail: vertex mean, not the area centroid; fine for a 50 km weather cell
@@ -136,4 +163,4 @@ async def analyse(geometry, field_id, include_modis=False, include_soil=False) -
             series.s2_series(c, geom), climate.load_cell(c, lat, lon),
             series.modis_series(c, geom) if include_modis and area_ha(ring) >= K.MODIS_MIN_HA else asyncio.sleep(0),
             soil_at(c, lat, lon) if include_soil else asyncio.sleep(0))
-    return assemble(field_id, ring, s2, cell, modis, soil)
+    return assemble(field_id, ring, s2, cell, modis, soil, declared_use=declared_use)

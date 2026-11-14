@@ -17,11 +17,12 @@ async def main():
     index = []
     for f in json.loads((ROOT / "presets.geojson").read_text())["features"]:
         p, t = f["properties"], time.time()
-        a = await analyse(f["geometry"], p["id"], include_modis=True, include_soil=True)
+        declared = {int(y): use for y, use in p["declaredUse"].items()}    # JSON keys are text; the analysis works on years
+        a = await analyse(f["geometry"], p["id"], include_modis=True, include_soil=True, declared_use=declared)
         (OUT / f"{p['id']}.json").write_text(json.dumps(a, separators=(",", ":"), allow_nan=False))
         index.append({"id": p["id"], "name": p["name"], "region": p["region"], "note": p["note"], "rotation": p["rotation"],
-                      "areaHa": a["field"]["areaHa"], "geometry": f["geometry"], "demoYears": p["demoYears"]})
-        peaks = " ".join(f"{s['year']}:{s['peak']}/{s['use']}" for s in a["seasons"])
+                      "areaHa": a["field"]["areaHa"], "geometry": f["geometry"], "demoYears": p["demoYears"], "declaredUse": p["declaredUse"]})
+        peaks = " ".join(f"{s['year']}:{s['peak']}/{s['declared'] or s['use']}" for s in a["seasons"])
         print(f"{p['id']}: {time.time() - t:.1f} s | {a['field']['areaHa']} ha | modis {'yes' if a['modis'] else 'no'} | soil {'yes' if a['soil'] else 'no'}\n  {peaks}")
     (OUT / "index.json").write_text(json.dumps(index, indent=1))
 
