@@ -184,6 +184,9 @@ def assemble(field_id, ring, s2_rows, cell, modis_rows=None, soil=None, today=No
         "profile": {"rainMeanMm": profile["rainMeanMm"], "water": profile["water"], "heat": profile["heat"], "frost": profile["frost"],
                     "bare": round(len(bare) / len(judged), 2) if judged else 0.0, "years": profile["years"]},
         "soil": soil,
+        # the passes clear over the field, so the map can show the field as the satellite saw it that day
+        "scenes": [{"date": r["date"], "item": r["item"], "clear": r["clear"]} for r in s2_rows
+                   if r.get("item") and r["clear"] >= K.MIN_CLEAR and r["snow"] < K.MAX_SNOW],
     }
 
 

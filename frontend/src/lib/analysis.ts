@@ -122,6 +122,8 @@ export type FieldAnalysis = {
     trendNote: string
   }
   profile: StressProfile
+  /** Sentinel-2 passes clear over the field (at least 75% of it), oldest first. Shown as the dated image on the map. */
+  scenes: { date: string; item: string; clear: number }[]
   /** Modelled soil (ISRIC SoilGrids, 250 m). Not a field test. Presets only. */
   soil: { clayPct: number; sandPct: number; ph: number; source: string } | null
 }

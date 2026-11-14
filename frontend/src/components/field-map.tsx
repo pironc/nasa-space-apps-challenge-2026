@@ -28,7 +28,7 @@ import {
   type RotationId,
   type SavedField,
 } from "@/lib/fields"
-import { BASEMAP, LAYERS, type LayerState } from "@/lib/layers"
+import { BASEMAP, LAYERS, sceneTiles, type LayerState } from "@/lib/layers"
 import { RasterLayer } from "@/map/RasterLayer"
 import { useFieldDraw } from "@/map/useFieldDraw"
 
@@ -36,7 +36,7 @@ import { useFieldDraw } from "@/map/useFieldDraw"
 const ACCENT = "#1f3a5f" // --primary: MapLibre paint needs the literal value
 const FILL: FillLayerSpecification["paint"] = {
   "fill-color": ACCENT,
-  "fill-opacity": ["case", ["get", "selected"], 0.22, 0.06],
+  "fill-opacity": ["case", ["get", "selected"], 0.06, 0.04], // light, so the imagery shows through
 }
 const LINE: LineLayerSpecification["paint"] = {
   "line-color": ACCENT,
@@ -88,8 +88,8 @@ function FieldLabels({
   return null
 }
 
-/** What surrounds the map: a narrow or wide panel beside it, or (on a phone) a drawer over its lower part. */
-type Layout = "narrow" | "wide" | "drawer"
+/** What surrounds the map: a narrow or wide panel beside it, no panel, or (on a phone) a drawer over its lower part. */
+export type Layout = "narrow" | "wide" | "full" | "drawer"
 
 /** Brings the selected field into view, also on first load from a shared link and when the map changes size. */
 function FitToField({
@@ -130,6 +130,12 @@ function FitToField({
   }, [map, isLoaded, id, layout])
   return null
 }
+
+/** A bounding box grown by `by` degrees on each side, as [west, south, east, north]. */
+const padded = (
+  [[w, s], [e, n]]: [[number, number], [number, number]],
+  by: number
+): [number, number, number, number] => [w - by, s - by, e + by, n + by]
 
 type NewField = Pick<SavedField, "name" | "rotation" | "areaHa" | "geometry">
 
@@ -278,6 +284,12 @@ function DrawToolbar({
 
 type Props = {
   date: string
+  /** The dates play will step to next: their frames load in the background. */
+  nextDates: string[]
+  /** Sentinel-2 scene ids of the field image: the one to show, then the next ones to preload. */
+  scene: string | null
+  nextScenes: string[]
+  onReady: (id: string, ready: boolean) => void
   layers: LayerState
   fields: SavedField[]
   selectedId: string | null
@@ -288,6 +300,10 @@ type Props = {
 
 export function FieldMap({
   date,
+  nextDates,
+  scene,
+  nextScenes,
+  onReady,
   layers,
   fields,
   selectedId,
@@ -296,6 +312,7 @@ export function FieldMap({
   onSave,
 }: Props) {
   const year = +date.slice(0, 4)
+  const selectedField = fields.find((f) => f.id === selectedId)
 
   const data = useMemo<FeatureCollection<Polygon, FieldProps>>(
     () => ({
@@ -319,17 +336,36 @@ export function FieldMap({
       maxZoom={16}
       attributionControl={{ compact: true }}
     >
-      {LAYERS.map((l) => (
+      {LAYERS.filter((l) => l.id !== "scene").map((l) => (
         <RasterLayer
           key={l.id}
           id={l.id}
           tiles={l.tiles(date)}
+          next={nextDates.map((d) => l.tiles(d))}
           visible={layers[l.id].on && year >= l.since}
           opacity={layers[l.id].opacity}
           maxzoom={l.maxzoom}
+          maxView={l.maxView}
           attribution={l.attribution}
+          onReady={onReady}
         />
       ))}
+      {/* The selected field as Sentinel-2 saw it: only around the field, only when zoomed in. */}
+      {selectedField && (
+        <RasterLayer
+          key={selectedField.id}
+          id="scene"
+          tiles={scene && sceneTiles(scene)}
+          next={nextScenes.map(sceneTiles)}
+          visible={layers.scene.on && !!scene}
+          opacity={layers.scene.opacity}
+          maxzoom={15}
+          minzoom={10}
+          bounds={padded(bounds(selectedField.geometry), 0.08)}
+          attribution={LAYERS.find((l) => l.id === "scene")!.attribution}
+          onReady={onReady}
+        />
+      )}
       <MapGeoJSON
         data={data}
         promoteId="id"
@@ -339,10 +375,7 @@ export function FieldMap({
         onClick={(e) => onSelect(e.feature.properties.id)}
       />
       <FieldLabels data={data} />
-      <FitToField
-        field={fields.find((f) => f.id === selectedId)}
-        layout={layout}
-      />
+      <FitToField field={selectedField} layout={layout} />
       <MapControls position="top-right" />
       {/* On a phone the drawer leaves too little map to draw on: starting an outline closes it. */}
       <DrawToolbar
