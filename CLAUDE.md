@@ -38,15 +38,23 @@ The challenge's objectives are all worded "may". The ones this project takes on:
 - **Baseline rotation is whatever the user declares.** Offer two presets: "fallow, wheat, wheat, barley" and "continuous wheat".
 - **Honest trade-off, now quantified:** wheat after lentil or mustard yields about 12% less than after fallow, after oats about 6% less, after pea 18 to 25% less. Oats is the best-documented local fallow replacement.
 
-## 5. Build phases (incremental, each one demoable)
-1. **UI shell and map.** shadcn app shell, map with keyless basemap, toggleable NASA layers with opacity and legends, time slider, draw and save a field (localStorage), saved-field list, empty analysis panel.
-2. **Field data.** Backend endpoint that builds and caches a field's satellite series and its climate series; charts in the analysis panel.
-3. **Analysis.** Alert rules and climate diagnosis, shown per field and on the map, replayable as of the slider date. Then the MODIS 2000-onward baseline ("second-worst peak in 26 years").
-4. **Rotation strategies.** Declared rotation, crop catalogue, scoring, three cards with evidence, benefits, gaps and local-review risks, plus the comparison table. Glossary and uncertainty note.
-5. **Presets and narrative.** Three preset fields precomputed and committed; optional LLM narrative on top of the rule-based text; Russian.
-6. **Publish and submit.** Dockerfile, Cloud Run, README with credits and AI-use section, deck or video, project page. Submit a first version early and resubmit as it improves.
+## 5. Build order (reshaped after an independent review on 14 Nov)
+The first plan was horizontal (UI, then data, then analysis, then strategies, then presets, then deploy) and about three times the time available. The order is now vertical: one demo field carried end to end, then widened.
 
-Cut order if time runs short: Kazakh text, field chat, second rainfall source, HLS, bucket snapshot, MODIS baseline, LLM narrative. Phases 1 to 4 and 6 are the product.
+1. **Done: UI shell and map.** Toggleable NASA layers with opacity and legends, time slider, draw and save a field.
+2. **One preset field end to end (Kostanay).** Python pipeline writes the analysis as static JSON under `frontend/public/presets/`; the app opens on that field, at a July date of its stressed year, on the Strategies tab. Presets need no backend, so the app can also be hosted as static files.
+3. **Panel:** Strategies (default tab: farmer priorities, a "drier and hotter" what-if, three cards, comparison table), Seasons (NDVI against the field's normal, season verdicts, NASA MODIS record since 2000), Climate (NASA POWER season against normal, causes), and an "About the data" dialog (glossary, satellite versus ground, uncertainty, credits).
+4. **Deploy early**, submit early, then: second and third preset, live analysis of a drawn field through the API, phone polish.
+
+Contract between the two halves: `frontend/src/lib/analysis.ts`. Rotation scoring runs in the browser (`frontend/src/lib/rotation.ts`) so the cards respond to the farmer's priorities.
+
+Product framing: this is rotation decision support. Season findings are called **verdicts**, never alerts or notifications (there is no login, so nobody could be notified).
+
+**Cut for this weekend:** LLM narrative, Russian and Kazakh, field chat, Cloud Storage mount, incremental refresh, per-year land-use override UI, live Sentinel-2 overlay tiles, sowing-date editor, three of the six verdict types (patchy, no green-up, abrupt drop), second rainfall source, HLS, dark mode.
+**Cut by the clock, last to go first:** polish pass, phone check, drawn-field live analysis, third preset, second preset.
+**Never cut:** one preset, three verdicts, three cards with gaps and local-review lists, deploy, deck, README credits.
+
+Deck outline: `docs/deck-outline.md`. Numbers on slides come from the app's own output for the demo field, never from the research notes (those were measured at a different grid cell).
 
 ## 6. Tech stack
 ### Frontend (`/frontend`)
