@@ -1,13 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/public-sans";
+@import "@fontsource-variable/newsreader/opsz.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    /* Field notebook: a serif for titles, a plain sans for everything you read and operate */
+    --font-heading: 'Newsreader Variable', Georgia, serif;
+    --font-sans: 'Public Sans Variable', system-ui, sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -53,45 +55,47 @@
 }
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: #256abf;
-    --primary-foreground: #fff;
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.5 0 0); /* 4.5:1 or better on white, muted and the selected tint (#e9f0f9) */
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: #256abf;
-    /* Charts: selected year, comparison year, third series. Checked with the dataviz palette validator. */
-    --chart-1: #2a78d6;
-    --chart-2: #eb6834;
-    --chart-3: #1baf7a;
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
+    /* Field notebook palette: warm paper, ink text, one ink-navy accent. Every text pair checked at 4.5:1 or better. */
+    --background: #fbf9f4;
+    --foreground: #1f2328;
+    --card: #ffffff;
+    --card-foreground: #1f2328;
+    --popover: #ffffff;
+    --popover-foreground: #1f2328;
+    --primary: #1f3a5f;
+    --primary-foreground: #ffffff;
+    --secondary: #f2eee4;
+    --secondary-foreground: #1f2328;
+    --muted: #f2eee4;
+    --muted-foreground: #5f5a50;
+    --accent: #ece6d8;
+    --accent-foreground: #1f2328;
+    --destructive: #b42318;
+    --border: #e4ded0;
+    --input: #d9d2c1;
+    --ring: #1f3a5f;
+    /* Charts: selected year, comparison year, third series. */
+    --chart-1: #2b5c8a;
+    --chart-2: #c8551f;
+    --chart-3: #1b8a62;
+    --chart-4: #5f5a50;
+    --chart-5: #1f2328;
     /* Status only, always next to an icon and a label. Never a chart series or a map fill. */
     --status-good: #0ca30c;
     --status-watch: #fab219;
     --status-warning: #ec835a;
     --status-severe: #d03b3b;
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: #256abf;
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --radius: 0.375rem;
+    --sidebar: #f6f2e8;
+    --sidebar-foreground: #1f2328;
+    --sidebar-primary: #1f3a5f;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #ece6d8;
+    --sidebar-accent-foreground: #1f2328;
+    --sidebar-border: #e4ded0;
+    --sidebar-ring: #1f3a5f;
 }
+
 
 .dark {
     --background: oklch(0.145 0 0);
@@ -153,6 +157,11 @@
   h1, h2, h3, h4, label {
     text-wrap: balance;
     }
+  h1, h2, h3 {
+    font-family: var(--font-heading);
+    font-optical-sizing: auto;
+    letter-spacing: -0.01em;
+    }
   p, li, dd {
     text-wrap: pretty;
     }
@@ -170,7 +179,7 @@
     @apply hidden!;
     }
   .maplibregl-ctrl-attrib {
-    @apply bg-background! text-muted-foreground! border-border! rounded-md! border! shadow-sm!;
+    @apply bg-background! text-muted-foreground! border-border! rounded-md! border! shadow-sm! font-sans!;
     }
   .maplibregl-ctrl-attrib a {
     @apply text-muted-foreground!;

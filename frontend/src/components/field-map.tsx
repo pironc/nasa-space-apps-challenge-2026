@@ -33,7 +33,7 @@ import { RasterLayer } from "@/map/RasterLayer"
 import { useFieldDraw } from "@/map/useFieldDraw"
 
 // The one accent. Reds, oranges, yellows and greens belong to the data underneath.
-const ACCENT = "#256abf"
+const ACCENT = "#1f3a5f" // --primary: MapLibre paint needs the literal value
 const FILL: FillLayerSpecification["paint"] = {
   "fill-color": ACCENT,
   "fill-opacity": ["case", ["get", "selected"], 0.22, 0.06],
@@ -73,7 +73,7 @@ function FieldLabels({
         "text-size": 13,
       },
       paint: {
-        "text-color": "#0b1f3a",
+        "text-color": "#1f2328", // --foreground
         "text-halo-color": "#fff",
         "text-halo-width": 2,
         "text-halo-blur": 0,

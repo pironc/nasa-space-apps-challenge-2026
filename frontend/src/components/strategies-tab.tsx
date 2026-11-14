@@ -264,7 +264,7 @@ export function StrategiesTab({
 
       {/* Straight after the finding and above the cards, so all three options and their bars are on the first screen. */}
       <section className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium">Side by side</h3>
+        <h3 className="text-base font-semibold">Side by side</h3>
         <Table className="table-fixed">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -330,7 +330,7 @@ export function StrategiesTab({
 
       <section className="grid gap-3 @2xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3 rounded-xl border p-3">
-          <h3 className="text-sm font-medium">What matters to you</h3>
+          <h3 className="text-base font-semibold">What matters to you</h3>
           <div className="grid gap-x-6 gap-y-3 @lg:grid-cols-3">
             {PRIORITIES.map(({ key, label }) => (
               <Dial
@@ -370,7 +370,7 @@ export function StrategiesTab({
       </section>
 
       <section className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium">
+        <h3 className="text-base font-semibold">
           Options to discuss with your agronomist
         </h3>
         {/* as many cards across as fit at 14rem each: three in the full-width panel from 1440 px, two when the map needs the room */}
