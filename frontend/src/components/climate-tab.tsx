@@ -59,11 +59,11 @@ const dayMonth = (iso: string) =>
   })
 
 const Sub = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-xs text-muted-foreground">{children}</div>
+  <div className="mt-1 text-xs text-muted-foreground">{children}</div>
 )
 
 const Evidence = ({ lines }: { lines: string[] }) => (
-  <ul className="flex list-disc flex-col gap-0.5 pl-4 text-xs text-pretty text-muted-foreground">
+  <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-pretty text-muted-foreground">
     {lines.map((e) => (
       <li key={e}>{e}</li>
     ))}
@@ -313,7 +313,7 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
       )}
 
       <section className="flex flex-col gap-2">
-        <div>
+        <div className="flex flex-col gap-1">
           <h3 className="text-sm font-medium">
             May to August rain, every season since {climate.seasons[0]?.year}
           </h3>
@@ -354,7 +354,7 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
                 { length: rainTop / 100 + 1 },
                 (_, i) => i * 100
               )}
-              width={30}
+              width={36}
               tickLine={false}
               axisLine={false}
               className="tabular-nums"

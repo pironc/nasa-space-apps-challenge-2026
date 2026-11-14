@@ -40,7 +40,7 @@ export function TimeSlider({ date, onChange }: Props) {
   }, [playing, index, dates, onChange])
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border bg-background/95 p-3 shadow-md">
+    <div className="flex flex-col gap-2 rounded-xl border bg-background/95 p-4 shadow-md">
       <div className="flex flex-wrap items-center gap-2">
         <Button
           size="icon"
@@ -51,7 +51,7 @@ export function TimeSlider({ date, onChange }: Props) {
         >
           {playing ? <PauseIcon /> : <PlayIcon />}
         </Button>
-        <div className="min-w-[8.5rem] flex-1 leading-tight">
+        <div className="flex min-w-[8.5rem] flex-1 flex-col gap-1 leading-tight">
           <div className="text-sm font-medium tabular-nums">
             {formatDate(shown)}
           </div>
@@ -95,7 +95,7 @@ export function TimeSlider({ date, onChange }: Props) {
       />
       {/* quarter marks only line up when the year has all 23 periods */}
       <div
-        className={`flex justify-between px-0.5 text-[0.6875rem] text-muted-foreground ${dates.length === 23 ? "" : "invisible"}`}
+        className={`flex justify-between px-0.5 text-xs text-muted-foreground ${dates.length === 23 ? "" : "invisible"}`}
         aria-hidden
       >
         <span>Jan</span>

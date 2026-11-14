@@ -150,6 +150,9 @@
       --tw-exit-translate-y: 0 !important;
       }
     }
+  h1, h2, h3, h4, label {
+    text-wrap: balance;
+    }
   p, li, dd {
     text-wrap: pretty;
     }
