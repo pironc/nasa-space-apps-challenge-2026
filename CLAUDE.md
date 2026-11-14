@@ -137,11 +137,14 @@ Specs with formulas, thresholds and back-tests: `docs/research/vegetation-analys
 - Preset narratives are generated once, read by a human and committed, so the judged demo never depends on a live model call.
 - Label LLM text in the UI ("AI-written summary") and tag it in the API response.
 
-## 12. Decisions waiting for the user
-1. **AI acknowledgement.** The rules require generated code to be acknowledged "in descriptive text and metadata", while commits must carry no AI attribution. Proposed: a "Use of AI tools" section in the README, a note in the `package.json` and `pyproject.toml` descriptions, the UI label on LLM text, and the "Use of Super Intelligence (SI)" field on the project page; commits stay clean.
-2. **LLM key.** Is there an Anthropic API key with credit? Without one the app ships with rule-based text only.
-3. **Team status.** Confirm the account is a confirmed (not waitlisted) participant of the Singapore event and the team has this challenge selected.
-4. **Scope of the no-movement rule.** Assumed: press feedback only. Dialog and popover open animations and the sliding switch thumb stay unless told otherwise.
+## 12. Decisions
+Settled with the user on 2026-11-14:
+- **AI acknowledgement:** a "Use of AI tools" section in the README, a note in the `package.json` and `pyproject.toml` descriptions, a label on LLM text in the UI, and the "Use of Super Intelligence (SI)" field on the project page. Commits stay free of AI attribution.
+- **Team:** "pironc", Singapore virtual event, confirmed participant.
+
+Still open:
+- **LLM key.** Needed only for the phase 5 narrative. Without an Anthropic API key the app ships with rule-based text only.
+- **Scope of the no-movement rule.** Assumed: press feedback only. Dialog and popover open animations and the sliding switch thumb stay unless told otherwise.
 
 ## 13. Checklist
 ### Local development (nothing to request)
