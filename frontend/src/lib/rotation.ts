@@ -144,8 +144,12 @@ function score(rot: Rot, p: StressProfile): Scores {
         0.2 * (1 - (4 * (n - sown.length)) / n)
     ),
     // Never above 0.8: a break crop does not clean a field. Two white-mould hosts in four years: never high.
+    // Cereals only (wheat with barley, oats or millet): never above 0.5, they share root rots, grass weeds and herbicides.
     pestBreak: Math.min(
-      sown.filter((id) => MOULD.includes(id)).length > 1 ? 0.5 : 0.8,
+      sown.every((id) => crop(id).group.startsWith("cereal")) ||
+        sown.filter((id) => MOULD.includes(id)).length > 1
+        ? 0.5
+        : 0.8,
       clip(
         1 -
           (0.6 * rot.filter(isWheat).length) / n -
@@ -179,29 +183,27 @@ const changedYears = (rot: Rot, base: Rot) => {
 
 /** Each farmer priority scales its indicators from x0.5 to x1.5. There is no price anywhere. */
 function total(
-  kind: "water" | "soil",
+  kind: "water" | "soil" | "any", // "any": the mean of both cards' weights, for the fit bar on all three cards
   rot: Rot,
   current: Rot,
   s: Scores,
   p: StressProfile,
   pr: Priorities
 ) {
-  const base: Scores =
-    kind === "water"
-      ? {
-          climateFit: 0.5 + 0.2 * p.water,
-          soil: 0.1,
-          pestBreak: 0.1,
-          market: 0.1,
-          productivity: 0.2,
-        }
-      : {
-          climateFit: 0.15,
-          soil: 0.4 + 0.2 * p.bare,
-          pestBreak: 0.2,
-          market: 0.1,
-          productivity: 0.15,
-        }
+  const forWater: Scores = {
+    climateFit: 0.5 + 0.2 * p.water,
+    soil: 0.1,
+    pestBreak: 0.1,
+    market: 0.1,
+    productivity: 0.2,
+  }
+  const forSoil: Scores = {
+    climateFit: 0.15,
+    soil: 0.4 + 0.2 * p.bare,
+    pestBreak: 0.2,
+    market: 0.1,
+    productivity: 0.15,
+  }
   const tilt: Scores = {
     climateFit: pr.water,
     soil: pr.soil,
@@ -209,8 +211,14 @@ function total(
     market: pr.income,
     productivity: pr.income,
   }
-  const keys = Object.keys(base) as Key[]
-  const w = keys.map((k) => base[k] * (0.5 + clip(tilt[k])))
+  const keys = Object.keys(tilt) as Key[]
+  const base = (k: Key) =>
+    kind === "water"
+      ? forWater[k]
+      : kind === "soil"
+        ? forSoil[k]
+        : (forWater[k] + forSoil[k]) / 2
+  const w = keys.map((k) => base(k) * (0.5 + clip(tilt[k])))
   const weighted =
     keys.reduce((sum, k, i) => sum + w[i] * s[k], 0) /
     w.reduce((a, b) => a + b, 0)
@@ -263,63 +271,77 @@ const grade = (rot: Rot) =>
     : rot.every(
           (id) => id === F || TRIAL_ROT.includes(id) || crop(id).yieldLocalTHa
         )
-      ? "Crops trialled locally, rotation not"
+      ? "Each crop trialled locally; this sequence is not"
       : "Judgement"
 
 // --- Card text ---------------------------------------------------------------
 
-const NOTES: Partial<Record<CropId, { benefit: string; review?: string }>> = {
+// `gap`: the one thing about this crop on this field that no satellite shows.
+const NOTES: Partial<
+  Record<CropId, { benefit: string; review?: string; gap: string }>
+> = {
   barley: {
     benefit:
       "Barley ripens earlier than wheat and is rated as needing less water.",
+    review:
+      "Barley shares root rots, grass weeds and herbicides with wheat: it spreads the weather risk but is only a partial break from wheat diseases.",
+    gap: "When barley was sown and when it ripened on this field, which decide whether it escapes a July dry spell.",
   },
   flax: {
     benefit:
       "Flax is rated as more drought-tolerant than wheat and belongs to a different plant family.",
     review:
       "Flax leaves thin stubble, so the soil is less protected against the wind after it.",
+    gap: "How much of the thin flax stubble stays standing through winter on this field.",
   },
   millet: {
     benefit:
-      "Millet is rated the most drought- and heat-tolerant crop in the catalogue; in the 2012 drought it out-yielded wheat by 0.3 t/ha at Shortandy (Barayev centre).",
+      "Millet is rated the most drought- and heat-tolerant crop in the catalogue; in a dry year (2012) it out-yielded wheat by 0.3 t/ha at Shortandy (Barayev centre).",
     review:
       "Millet is killed by frost: it is sown late into warm soil and must be off the field before the first autumn frost.",
+    gap: "Soil temperature at sowing and the first autumn frost on this field, which decide a millet crop.",
   },
   lentil: {
     benefit:
-      "Lentil is a pulse: with the right inoculant and enough moisture, bacteria on its roots take nitrogen from the air, so it adds some instead of only removing it.",
+      "Lentil is a pulse: with the right inoculant (seed-applied bacteria) and enough moisture, those bacteria live on its roots and take nitrogen from the air, so it adds some instead of only removing it.",
     review:
       "Lentil needs a header that cuts close to the ground, and four to five years before it returns to the same field (Barayev centre).",
+    gap: "Whether lentil roots formed nodules, the sign that nitrogen is being taken from the air.",
   },
   field_pea: {
     benefit:
-      "Pea is a pulse: with the right inoculant and enough moisture, bacteria on its roots take nitrogen from the air, so it adds some instead of only removing it.",
+      "Pea is a pulse: with the right inoculant (seed-applied bacteria) and enough moisture, those bacteria live on its roots and take nitrogen from the air, so it adds some instead of only removing it.",
     review:
       "Pea needs enough phosphorus and a header that cuts close to the ground.",
+    gap: "Whether pea roots formed nodules, the sign that nitrogen is being taken from the air.",
   },
   chickpea: {
     benefit:
       "Chickpea is a pulse rated as very drought-tolerant, and the Barayev centre names it for the driest districts.",
     review:
       "Chickpea needs its own inoculant strain (the bacteria that fix nitrogen) and ripens late, which exposes it to September frost.",
+    gap: "September frost on this field, which decides whether chickpea ripens.",
   },
   oats: {
     benefit:
       "Oats leaves as much stubble as wheat; sown in place of bare fallow it averaged about 2.4 t/ha over 20 years in Barayev centre trials.",
     review:
       "Wild oat cannot be controlled inside an oat crop: check how much wild oat the field carries first.",
+    gap: "How much wild oat this field carries.",
   },
   sweet_clover: {
     benefit:
-      "Sweet clover is sown under a cereal and ploughed in the next summer: it covers the soil and is rated the strongest nitrogen source in the catalogue.",
+      "Sweet clover is sown under a cereal and worked into the soil, or killed and left as mulch, the next summer: it is rated the strongest nitrogen source in the catalogue, and wheat after it averaged about 2 t/ha over 13 years in Barayev centre trials.",
     review:
       "Sweet clover uses more soil water than other green manures and has held back the following crop in dry years (Alberta Agriculture).",
+    gap: "Whether the sweet clover stand established under the cover crop.",
   },
   rapeseed: {
     benefit:
       "Rapeseed suits wetter, cooler districts and belongs to a different plant family from wheat.",
     review:
       "Rapeseed is sensitive to heat at flowering, and its fit here rests on rain figures from a regional grid: a local check is needed.",
+    gap: "Heat on this field in the weeks rapeseed flowers.",
   },
 }
 
@@ -331,14 +353,9 @@ const NEXT_WHEAT: Partial<Record<CropId, string>> = {
   field_pea: `Older trials in the region put wheat after pea 18 to 25% below wheat after fallow; ${TRIAL}, measured about 12% less after lentil.`,
 }
 
-const TRIAL_LINE = `Oats, wheat, wheat, barley is the one rotation measured locally: in ${TRIAL}, it gave about 27% more grain per rotation hectare than the fallow rotation.`
+const TRIAL_LINE = `oats, wheat, wheat, barley is the one rotation measured locally: in ${TRIAL}, it gave about 27% more grain per rotation hectare than the fallow rotation.`
 const COVERED =
   "Your rotation already keeps residue on the soil. The gains available are nitrogen and a break from wheat diseases, not soil cover."
-const PRIORITY: Record<keyof Priorities, string> = {
-  water: "water",
-  soil: "soil",
-  income: "market and output",
-}
 /** What the bars are, and which crops fell back on the national yield range for want of a local trial figure. */
 const ratingsGap = (rot: Rot) => {
   const national = [...new Set(rot)].filter(
@@ -351,7 +368,8 @@ const ratingsGap = (rot: Rot) => {
       : "")
   )
 }
-const stress = (v: number) => (v < 0.2 ? "low" : v < 0.45 ? "moderate" : "high")
+const stress = (v: number) =>
+  v < 0.2 ? "small" : v < 0.45 ? "moderate" : "large"
 
 // Land use per season: the owner's declaration wins over the reading of the curve, and a season that is
 // neither declared nor clear from the curve (failed crop or fallow?) is left out of every count.
@@ -374,6 +392,12 @@ function facts(a: FieldAnalysis) {
   const clear = a.seasons.filter((s) => !unclear(s))
   const left = a.seasons.filter(unclear)
   const bare = clear.filter(fallowLike)
+  const fallowYears = (given: boolean, one: string, many: string) => {
+    const ys = bare.filter((s) => !!s.declared === given).map((s) => s.year)
+    return (
+      ys.length > 0 && `${list(ys.map(String))} ${ys.length > 1 ? many : one}`
+    )
+  }
   // The lowest cropped season with a greenness deficit, in the analysis's own words.
   const hit = clear
     .filter((s) => !fallowLike(s) && s.peak != null)
@@ -387,31 +411,48 @@ function facts(a: FieldAnalysis) {
   const rank = m ? modis.filter((y) => y.peak! < m.peak!).length : 5
   return {
     bareCount: bare.length,
+    // Says "marked", not "you gave": on the demo fields the land use was assumed by the team.
+    approximation:
+      bare.length > 0 &&
+      ` ${[
+        fallowYears(true, "is marked as fallow", "are marked as fallow"),
+        fallowYears(
+          false,
+          "reads as bare or fallow on the satellite curve",
+          "read as bare or fallow on the satellite curve"
+        ),
+      ]
+        .filter(Boolean)
+        .join(
+          " and "
+        )}, so wheat every year is an approximation of this field.`,
     clearCount: clear.length,
     drought:
       cs.length > 0 &&
-      `${droughts.length || "None"} of the ${cs.length} seasons from ${Math.min(...years)} to ${Math.max(...years)} were a drought by this location's own weather record (NASA POWER regional grid)${droughts.length ? `: ${droughts.join(", ")}` : ""}.`,
+      (droughts.length
+        ? `NASA POWER: the driest fifth of seasons since ${Math.min(...years)} by rain set against heat (regional grid): ${droughts.join(", ")}. A May to August total can hide a dry June and July.`
+        : `NASA POWER: no season since ${Math.min(...years)} falls in the driest fifth by rain set against heat (regional grid).`),
     worst:
       dry &&
-      `In ${dry.year}, the driest of the last ${recent.length} seasons, May to August rain was ${Math.round(dry.rainMayAugPct)}% of normal, with ${Math.round(dry.hotDays30)} days at 30 °C or hotter (normal: ${Math.round(a.climate.normals.hotDays30)}). By this location's own record that season was ${dry.drought === "none" ? "not a drought" : dry.drought === "severe" ? "a severe drought" : "a drought"}: rank ${dry.htcRank} of ${dry.htcRankOf} for moisture, 1 being the driest.`,
+      `NASA POWER: in ${dry.year}, the driest of the last ${recent.length} seasons, May to August rain was ${Math.round(dry.rainMayAugPct)}% of normal, with ${Math.round(dry.hotDays30)} days at 30 °C or hotter (normal: ${Math.round(a.climate.normals.hotDays30)}). By this location's own record that season was ${dry.drought === "none" ? "not a drought" : dry.drought === "severe" ? "a severe drought" : "a drought"}: rank ${dry.htcRank} of ${dry.htcRankOf} for moisture, 1 being the driest.`,
     greenness:
       hit &&
-      `${hit.year}: ${hit.verdicts.find((v) => v.type === "VEG_DEFICIT")!.detail}${hit.explanation ? ` ${hit.explanation}` : ""}`,
+      `Sentinel-2 (ESA): season ${hit.year}. ${hit.verdicts.find((v) => v.type === "VEG_DEFICIT")!.detail}${hit.explanation ? ` ${hit.explanation}` : ""}`,
     bare:
       a.seasons.length > 0 &&
       (bare.length
-        ? `Bare or fallow summers, taking your declared land use first and the satellite curve otherwise: ${bare.length} of the ${clear.length} seasons with a clear land use (${bare.map((s) => s.year).join(", ")}).`
-        : `No bare or fallow summer shows in the ${clear.length} seasons with a clear land use.`),
+        ? `Sentinel-2 (ESA): bare or fallow summers, taking the land use given for the field first and the satellite curve otherwise: ${bare.length} of the ${clear.length} seasons with a clear land use (${bare.map((s) => s.year).join(", ")}).`
+        : `Sentinel-2 (ESA): no bare or fallow summer shows in the ${clear.length} seasons with a clear land use.`),
     unclear: left.length
       ? ` Seasons left out because the curve could be a failed crop or a fallow and none was declared: ${left.length} (${left.map((s) => s.year).join(", ")}).`
       : "",
     modis:
       m &&
       rank < 5 &&
-      `In ${m.year} this field ${rank ? `was among the ${rank + 1} lowest` : "had the lowest peak greenness"} of ${modis.length} cropped-looking summers since ${Math.min(...modis.map((y) => y.year))} (NASA MODIS, 250 m pixels that include neighbouring land).`,
+      `NASA MODIS: in ${m.year} this field ${rank ? `was among the ${rank + 1} lowest` : "had the lowest peak greenness"} of ${modis.length} cropped-looking summers since ${Math.min(...modis.map((y) => y.year))} (250 m pixels that include neighbouring land).`,
     soil:
       a.soil &&
-      `Modelled soil here is about ${Math.round(a.soil.clayPct)}% clay and ${Math.round(a.soil.sandPct)}% sand (ISRIC SoilGrids: a model, not a field test).`,
+      `ISRIC SoilGrids: modelled soil here is about ${Math.round(a.soil.clayPct)}% clay and ${Math.round(a.soil.sandPct)}% sand (a model, not a field test).`,
   }
 }
 
@@ -426,7 +467,8 @@ export function compareStrategies(input: StrategyInput): Strategy[] {
   const rank = (
     kind: "water" | "soil",
     templates: Rot[],
-    ok: (s: Scores) => boolean
+    ok: (s: Scores) => boolean,
+    pr: Priorities
   ) => {
     const scored = templates
       .filter((rot) => rot.every((id) => zone(id, p) > 0))
@@ -440,38 +482,61 @@ export function compareStrategies(input: StrategyInput): Strategy[] {
         .sort((x, y) => y.total - x.total),
     }
   }
-  const water = rank(
-    "water",
-    WATER.filter(
-      (rot) =>
-        rot.every((id) => crop(id).waterUse < 4) &&
-        (hasFallow || !rot.includes(F))
-    ),
-    (s) => s.climateFit > baseScore.climateFit
-  )
-  const soil = rank(
-    "soil",
-    SOIL.filter(
-      (rot) =>
-        !rot.includes(F) &&
-        thin(rot) <= 1 &&
-        !sameCrops(rot, water.ranked[0].rot)
-    ),
-    (s) => s.soil >= baseScore.soil + 0.05
-  )
+  const pick = (pr: Priorities) => {
+    const water = rank(
+      "water",
+      WATER.filter(
+        (rot) =>
+          rot.every((id) => crop(id).waterUse < 4) &&
+          (hasFallow || !rot.includes(F))
+      ),
+      (s) => s.climateFit > baseScore.climateFit,
+      pr
+    )
+    const soil = rank(
+      "soil",
+      SOIL.filter(
+        (rot) =>
+          !rot.includes(F) &&
+          thin(rot) <= 1 &&
+          !sameCrops(rot, water.ranked[0].rot)
+      ),
+      (s) => s.soil >= baseScore.soil + 0.05,
+      pr
+    )
+    return { water, soil }
+  }
+  const { water, soil } = pick(pr)
   // Continuous wheat already leaves as much residue as any option here: the card must not promise more cover.
   const noCoverGain = !soil.honest || cover(soil.ranked[0].rot) <= cover(base)
 
-  const high = (["water", "soil", "income"] as const).filter(
-    (k) => pr[k] >= 0.75
+  // Only claims the priorities changed a card when its rotation differs from the one at the middle settings.
+  const usual = (["water", "soil", "income"] as const).every(
+    (k) => pr[k] === DEFAULT_PRIORITIES[k]
   )
-  const priorityLine =
-    high.length > 0 &&
-    `You gave ${list(high.map((k) => PRIORITY[k]))} a high priority, which shifted the weights behind this option.`
+    ? null
+    : pick(DEFAULT_PRIORITIES)
+  const priorityLine = (kind: "water" | "soil") => {
+    const was = usual?.[kind].ranked[0].rot
+    const now = (kind === "water" ? water : soil).ranked[0].rot
+    return (
+      was &&
+      (was.join() === now.join()
+        ? "The same option holds at these priorities as with all three at medium."
+        : `Your priorities changed this option: with all three at medium it would be ${label(was).toLowerCase()}.`)
+    )
+  }
+  /** The bar that moves with every slider: the ranking's own total, on weights midway between the two shift cards. */
+  const fit = (rot: Rot, s: Scores) => clip(total("any", rot, base, s, p, pr))
+  // profile.water and profile.heat are averages against the cell's own normal, so they say nothing about how dry that normal is.
+  const htc = analysis.climate.normals.htc
   const stressLine =
-    `Water stress in this location's weather record is ${stress(analysis.profile.water)} and heat stress is ${stress(analysis.profile.heat)}.` +
+    `This location's weather record gives two ratings. Rain shortfall, meaning how often and how far May to August rain falls short of its own normal: ${stress(analysis.profile.water)}. Heat, meaning how often a season has many days at 30 °C or hotter: ${stress(analysis.profile.heat)}.` +
+    (htc < 1
+      ? ` The normal itself is dry: hydrothermal coefficient ${htc.toFixed(2)}, where about 1 is enough moisture.`
+      : ` The normal hydrothermal coefficient is ${htc.toFixed(2)}, where about 1 is enough moisture.`) +
     (input.drier > 0
-      ? ` With the drier what-if applied they count as ${stress(p.water)} and ${stress(p.heat)}: a what-if, not a forecast.`
+      ? ` With the drier what-if applied the two ratings become ${stress(p.water)} and ${stress(p.heat)}: a what-if, not a forecast.`
       : "")
 
   const shift = (kind: "water" | "soil", { ranked, honest }: typeof water) => {
@@ -500,6 +565,8 @@ export function compareStrategies(input: StrategyInput): Strategy[] {
       rotationLabel: label(rot),
       evidenceGrade: grade(rot),
       gap: ratingsGap(rot),
+      cropGap: NOTES[fresh[0]]?.gap,
+      priorityFit: fit(rot, s),
       indicators: indicators(s),
       closeCall:
         ranked[1] && ranked[0].total - ranked[1].total < 0.03
@@ -517,7 +584,7 @@ export function compareStrategies(input: StrategyInput): Strategy[] {
       ),
       localReview: lines(
         sprayed.length > 0 &&
-          `Before sowing ${names(sprayed)}: check which herbicides were used on this field in the last two seasons. Residues of sulfonylurea and some other cereal herbicides last longer in dry, alkaline soil and can injure ${names(sprayed)}. This app cannot see herbicide history.`,
+          `Before sowing ${names(sprayed)}: check which herbicides were used on this field in the last two seasons. Residues of sulfonylureas (a common group of cereal herbicides) and some others last longer in dry, alkaline soil and can injure ${names(sprayed)}. This app cannot see herbicide history.`,
         ...[...new Set(rot)]
           .filter((id) => (crop(id).minReturnYears ?? 0) > n / years(rot, id))
           .map(
@@ -552,12 +619,13 @@ export function compareStrategies(input: StrategyInput): Strategy[] {
       rotation: [...base],
       rotationLabel: label(base),
       evidenceGrade: "Your current practice",
+      priorityFit: fit(base, baseScore),
       indicators: indicators(baseScore),
       closeCall: null,
       why: lines(
         declared === "other"
           ? 'You chose "other or not sure", so this card assumes wheat every year. The comparison is only as good as that assumption.'
-          : `You declared ${label(base).toLowerCase()}. The other two options are measured against it.`,
+          : `The current rotation is given as ${label(base).toLowerCase()}. The other two options are measured against it.`,
         stressLine
       ),
       evidence: lines(
@@ -567,8 +635,8 @@ export function compareStrategies(input: StrategyInput): Strategy[] {
           f.bare +
             (hasFallow && f.bareCount === 0 && f.clearCount >= 4
               ? " The declared rotation has a fallow year every fourth summer, so the declaration is worth checking."
-              : !hasFallow && f.bareCount > 0
-                ? " That does not match a crop every year, so the declared rotation is worth checking."
+              : !hasFallow && f.approximation
+                ? f.approximation
                 : "") +
             f.unclear
       ),
@@ -579,9 +647,11 @@ export function compareStrategies(input: StrategyInput): Strategy[] {
           : CROPS[W].marketNote
       ),
       gaps: lines(
-        "Which crop and variety was sown each year is not visible from orbit: the rotation is what you declared.",
+        "Which crop and variety was sown each year is not visible from orbit: the rotation is the one given for the field.",
         "A summer with little green can be a fallow year or a failed crop; the satellite curve alone cannot tell them apart.",
-        "Weed seeds, disease carried over in the soil and insect pressure.",
+        hasFallow
+          ? "How much water the fallow year really stored for the wheat after it; weed seeds, soil-borne disease and insects."
+          : "Root disease and weed seeds carried from one wheat crop to the next; insect pressure.",
         ratingsGap(base)
       ),
       localReview: lines(
@@ -599,19 +669,20 @@ export function compareStrategies(input: StrategyInput): Strategy[] {
       rotation: w.rotation,
       rotationLabel: w.rotationLabel,
       evidenceGrade: w.evidenceGrade,
+      priorityFit: w.priorityFit,
       indicators: w.indicators,
       closeCall: w.closeCall,
       why: lines(
         stressLine,
         `${w.change}${!water.honest ? "" : w.indicators[0].value - baseScore.climateFit < 0.02 ? "; on this weather record its edge over the current rotation on climate fit is small" : "; taken together, its crops are rated as coping better with drought and heat than the current rotation's"}.`,
         "Sunflower and rapeseed are left out: both draw heavily on soil water and can leave the ground dry for the next crop.",
-        priorityLine
+        priorityLine("water")
       ),
       evidence: lines(f.worst, f.greenness, f.modis, f.drought),
       benefits: w.benefits,
       gaps: lines(
-        "Water stored deep in the soil after winter is not measured.",
-        "Snow depth and stubble height on this field.",
+        w.cropGap,
+        "Water stored deep in the soil after winter, snow depth and stubble height on this field.",
         "Rain and heat come from a regional weather grid, not from this field.",
         w.gap
       ),
@@ -623,6 +694,7 @@ export function compareStrategies(input: StrategyInput): Strategy[] {
       rotation: s.rotation,
       rotationLabel: s.rotationLabel,
       evidenceGrade: s.evidenceGrade,
+      priorityFit: s.priorityFit,
       indicators: s.indicators,
       closeCall: s.closeCall,
       why: lines(
@@ -631,14 +703,16 @@ export function compareStrategies(input: StrategyInput): Strategy[] {
           : hasFallow &&
               "Bare fallow leaves the soil uncovered for a whole summer, one year in four.",
         `${s.change}${!soil.honest ? "" : noCoverGain ? ", and it comes out higher on the soil cover and nitrogen bar through nitrogen alone" : ", and it comes out higher than the current rotation on soil cover and nitrogen"}.`,
-        TRIAL_LINE,
-        priorityLine
+        sameCrops(soil.ranked[0].rot, TRIAL_ROT)
+          ? cap(TRIAL_LINE)
+          : `For comparison, not this option: ${TRIAL_LINE}`,
+        priorityLine("soil")
       ),
       evidence: lines(f.bare && f.bare + f.unclear, f.soil),
       benefits: s.benefits,
       gaps: lines(
-        "Salt-affected patches, soil acidity, phosphorus and nitrate need a soil test.",
-        "Wind erosion, crusting and how much stubble really stays on the surface.",
+        s.cropGap,
+        "Salt-affected patches, acidity, phosphorus and nitrate need a soil test; wind erosion, crusting and surface stubble need a field walk.",
         analysis.soil
           ? "The soil figures shown come from a global soil model, not from samples taken on this field."
           : "Soil organic matter is not measured from orbit.",

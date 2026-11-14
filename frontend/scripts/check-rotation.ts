@@ -96,6 +96,13 @@ const SHORT: Record<string, string> = {
 }
 const short = (s: Strategy) => s.rotation.map((id) => SHORT[id] ?? id).join("-")
 
+const CEREALS = ["spring_wheat", "durum", "barley", "oats", "millet", "fallow"]
+const SOURCED =
+  /^(Sentinel-2 \(ESA\)|NASA POWER|NASA MODIS|ISRIC SoilGrids): [a-z]/
+const SAME =
+  "The same option holds at these priorities as with all three at medium."
+const htc = sample.climate.normals.htc.toFixed(2)
+
 const table: Record<string, string>[] = []
 let cases = 0
 let closeCalls = 0
@@ -153,11 +160,64 @@ for (const profile of Object.keys(PROFILES))
             declared !== "fwwb",
             `soil-cover honesty line: ${where}`
           )
-          assert.match(
-            soilWhy,
-            /Oats, wheat, wheat, barley is the one rotation measured locally: in the Barayev centre trial, Shortandy, 2018 to 2020, it gave about 27% more grain per rotation hectare than the fallow rotation\./,
-            `soil card must carry the local trial line: ${where}`
+          assert.ok(
+            soil.why.includes(
+              (crops(soil) === "barley,oats,spring_wheat,spring_wheat"
+                ? "Oats"
+                : "For comparison, not this option: oats") +
+                ", wheat, wheat, barley is the one rotation measured locally: in the Barayev centre trial, Shortandy, 2018 to 2020, it gave about 27% more grain per rotation hectare than the fallow rotation."
+            ),
+            `soil card must carry the local trial line, marked as a comparison unless it is the pick: ${where}`
           )
+          // The stress sentence says what it measures and how dry the normal is; it never calls the stress "low".
+          for (const c of [base, water]) {
+            assert.ok(
+              c.why.some(
+                (l) =>
+                  l.includes(
+                    "how often and how far May to August rain falls short of its own normal"
+                  ) &&
+                  l.includes(
+                    `hydrothermal coefficient ${htc}, where about 1 is enough moisture`
+                  ) &&
+                  l.includes("The normal itself is dry") === +htc < 1
+              ),
+              `stress sentence on ${c.kind}: ${where}`
+            )
+            assert.doesNotMatch(
+              c.why.find((l) => l.includes("how often and how far"))!,
+              /\blow\b|stress/,
+              `the ratings are small, moderate or large, never "low stress": ${where}`
+            )
+          }
+          // Priorities: a fit bar on every card, and a sentence that only claims a change when the pick changed.
+          const usual = run(
+            profile,
+            declared,
+            DEFAULT_PRIORITIES,
+            drier,
+            analysis
+          )
+          for (const [i, c] of cards.entries()) {
+            assert.ok(
+              c.priorityFit > 0 && c.priorityFit <= 1,
+              `priorityFit out of range on ${c.kind}: ${where}`
+            )
+            const said = c.why.filter(
+              (l) => l === SAME || l.startsWith("Your priorities changed")
+            )
+            assert.deepEqual(
+              said,
+              pr === DEFAULT_PRIORITIES || c.kind === "baseline"
+                ? []
+                : c.rotation.join() === usual[i].rotation.join()
+                  ? [SAME]
+                  : [
+                      `Your priorities changed this option: with all three at medium it would be ${usual[i].rotationLabel.toLowerCase()}.`,
+                    ],
+              `priority sentence on ${c.kind}: ${where}`
+            )
+          }
           assert.equal(base.evidenceGrade, "Your current practice", where)
           for (const c of [water, soil]) {
             assert.equal(
@@ -168,13 +228,24 @@ for (const profile of Object.keys(PROFILES))
                       ["millet", "sweet_clover"].includes(id)
                     )
                   ? "Judgement"
-                  : "Crops trialled locally, rotation not",
+                  : "Each crop trialled locally; this sequence is not",
               `evidence grade on ${c.kind}: ${where}`
             )
             assert.match(
               c.why.join(" "),
               /to discuss with your agronomist/,
               `${c.kind} card must be an option to discuss: ${where}`
+            )
+            assert.ok(
+              c.gaps.length === 4 &&
+                c.rotation.some(
+                  (id) =>
+                    id !== "spring_wheat" &&
+                    c.gaps[0].includes(
+                      CROPS[id as CropId].label.replace(/ \(.*/, "")
+                    )
+                ),
+              `first gap line must be about a crop this card proposes: ${where}`
             )
             // Carry-over and return intervals are specific to the crops on the card.
             const review = c.localReview.join(" ")
@@ -242,16 +313,18 @@ for (const profile of Object.keys(PROFILES))
                 list.length <= 4,
                 `${name} has more than 4 lines on ${c.kind}: ${where}`
               )
-            const text = quoted.reduce(
-              (t, q) => t.replaceAll(q, "(quoted)"),
-              [
-                c.rotationLabel,
-                c.evidenceGrade,
-                c.closeCall ?? "",
-                ...c.indicators.map((i) => i.label),
-                ...Object.values(lists).flat(),
-              ].join("\n")
-            )
+            const text = quoted
+              .reduce(
+                (t, q) => t.replaceAll(q, "(quoted)"),
+                [
+                  c.rotationLabel,
+                  c.evidenceGrade,
+                  c.closeCall ?? "",
+                  ...c.indicators.map((i) => i.label),
+                  ...Object.values(lists).flat(),
+                ].join("\n")
+              )
+              .replaceAll(`hydrothermal coefficient ${htc}`, "(the normal)") // two decimals, as the Climate tab shows it
             assert.doesNotMatch(
               text,
               /NaN|undefined|null|Infinity|\d\.\d{2,}|leaf| {2}|, \.| ,/i,
@@ -260,13 +333,35 @@ for (const profile of Object.keys(PROFILES))
             // Never-say list: no verdict on causes, no advice, no money result.
             assert.doesNotMatch(
               text,
-              /caused|management problem|monoculture|you should|recommend|profit|income|LOW_CANOPY|canopy was drier/i,
+              /caused|management problem|monoculture|you should|recommend|profit|income|alert|LOW_CANOPY|canopy was drier|the 2012 drought|plough|shifted the weights|rotation not/i,
               `forbidden wording on ${c.kind}: ${where}`
             )
             assert.ok(
-              value(c, "pestBreak") <= 0.8,
-              `disease break above its 0.8 cap on ${c.kind}: ${where}`
+              value(c, "pestBreak") <=
+                (c.rotation.every((id) => CEREALS.includes(id)) ? 0.5 : 0.8),
+              `disease break above its cap (0.8, or 0.5 for cereals only) on ${c.kind}: ${where}`
             )
+            for (const line of c.evidence)
+              assert.match(
+                line,
+                SOURCED,
+                `evidence line without its source: ${where}`
+              )
+            // Jargon is glossed where it appears.
+            for (const line of Object.values(lists).flat()) {
+              if (line.includes("inoculant"))
+                assert.match(
+                  line,
+                  /inoculant (\(seed-applied bacteria\)|strain \(the bacteria)/,
+                  where
+                )
+              if (line.includes("sulfonylurea"))
+                assert.match(
+                  line,
+                  /sulfonylureas \(a common group of cereal herbicides\)/,
+                  where
+                )
+            }
             if (
               c.rotation.filter((id) =>
                 [
@@ -462,14 +557,14 @@ assert.ok(
   real[1].evidence
     .join(" ")
     .includes(
-      `In ${driest.year}, the driest of the last 10 seasons, May to August rain was ${Math.round(driest.rainMayAugPct)}% of normal`
+      `NASA POWER: in ${driest.year}, the driest of the last 10 seasons, May to August rain was ${Math.round(driest.rainMayAugPct)}% of normal`
     )
 )
 assert.ok(
   real[0].evidence
     .join(" ")
     .includes(
-      `${sample.climate.droughtYears.length} of the ${cs.length} seasons from ${cs[0].year} to ${cs.at(-1)!.year}`
+      `NASA POWER: the driest fifth of seasons since ${cs[0].year} by rain set against heat (regional grid): ${sample.climate.droughtYears.join(", ")}. A May to August total can hide a dry June and July.`
     )
 )
 const known = JSON.stringify(sample).match(/\d+/g)!
@@ -525,6 +620,45 @@ for (const profile of Object.keys(PROFILES)) {
   ])
     assert.ok(bar(rot, "pestBreak", profile) <= 0.8, rot.join())
 }
+// Cereals only is not a disease break: wheat with barley or oats never reads above medium, and a pulse year beats it.
+for (const profile of Object.keys(PROFILES)) {
+  for (const rot of [
+    ["spring_wheat", "barley", "spring_wheat", "barley"],
+    ["oats", "spring_wheat", "barley", "millet"],
+    ["fallow", "barley", "oats", "barley"],
+  ])
+    assert.ok(bar(rot, "pestBreak", profile) <= 0.5, rot.join())
+  assert.ok(
+    bar(
+      ["spring_wheat", "lentil", "spring_wheat", "barley"],
+      "pestBreak",
+      profile
+    ) >
+      bar(
+        ["spring_wheat", "barley", "spring_wheat", "barley"],
+        "pestBreak",
+        profile
+      )
+  )
+}
+// The fit bar moves on all three cards whenever any one priority moves, on the real field.
+for (const declared of ["fwwb", "wwww"] as const)
+  for (const key of ["water", "soil", "income"] as const) {
+    const fits = [0, 0.5, 1].map((v) =>
+      compareStrategies({
+        analysis: sample,
+        declared,
+        priorities: { ...DEFAULT_PRIORITIES, [key]: v },
+        drier: 0,
+      }).map((c) => c.priorityFit)
+    )
+    for (const i of [0, 1, 2])
+      assert.ok(
+        Math.abs(fits[0][i] - fits[1][i]) > 0.001 &&
+          Math.abs(fits[2][i] - fits[1][i]) > 0.001,
+        `priorityFit of card ${i} does not move with ${key} (${declared}): ${fits.map((f) => f[i].toFixed(4))}`
+      )
+  }
 assert.equal(cropLabel("field_pea"), "Pea")
 assert.equal(cropLabel("spring_wheat"), "Wheat")
 assert.equal(cropLabel("not_a_crop"), "Not a crop")
@@ -571,16 +705,36 @@ const seen = compareStrategies({
 const bareLine = seen[2].evidence.join(" ")
 assert.match(
   bareLine,
-  /Bare or fallow summers[^.]*: 2 of the 5 seasons with a clear land use \(2019, 2022\)\./
+  /^Sentinel-2 \(ESA\): bare or fallow summers[^.]*: 2 of the 5 seasons with a clear land use \(2019, 2022\)\./
 )
 assert.match(bareLine, /Seasons left out because[^.]*: 2 \(2021, 2024\)\./)
 const greenness = seen[0].evidence.join(" ")
 assert.ok(
-  greenness.includes("2020: Deficit line for 2020. Weather line for 2020."),
+  greenness.includes(
+    "Sentinel-2 (ESA): season 2020. Deficit line for 2020. Weather line for 2020."
+  ),
   "the lowest clear cropped season with a deficit is quoted with its weather explanation"
 )
 assert.ok(!greenness.includes("Deficit line for 2021"))
 assert.doesNotMatch(JSON.stringify(seen), /LOW_CANOPY|canopy was drier/)
+// Wheat every year beside a fallow season: the card names the seasons and calls the rotation an approximation.
+// "Marked", not "you gave": on the demo fields the land use was assumed by the team.
+assert.doesNotMatch(seen[0].evidence.join(" "), /approximation/)
+for (const declared of ["wwww", "other"] as const) {
+  const text = compareStrategies({
+    analysis: declaredField,
+    declared,
+    priorities: DEFAULT_PRIORITIES,
+    drier: 0,
+  })[0].evidence.join(" ")
+  assert.ok(
+    text.includes(
+      "(2019, 2022). 2019 is marked as fallow and 2022 reads as bare or fallow on the satellite curve, so wheat every year is an approximation of this field."
+    ),
+    text
+  )
+  assert.doesNotMatch(text, /worth checking|does not match|you gave/i)
+}
 // Drought wording comes from the climate record's own drought fields.
 const droughtSeason = {
   ...cs.at(-1)!,
@@ -607,11 +761,11 @@ const droughtText = compareStrategies({
   .join(" ")
 assert.match(
   droughtText,
-  /In 2030, the driest of the last 10 seasons.*was a severe drought: rank 2 of 37 for moisture, 1 being the driest\./
+  /NASA POWER: in 2030, the driest of the last 10 seasons.*was a severe drought: rank 2 of 37 for moisture, 1 being the driest\./
 )
 assert.match(
   droughtText,
-  /2 of the \d+ seasons from \d+ to 2030 were a drought by this location's own weather record[^.]*: 2012, 2030\./
+  /NASA POWER: the driest fifth of seasons since \d+ by rain set against heat \(regional grid\): 2012, 2030\. A May to August total can hide a dry June and July\./
 )
 
 for (const c of Object.values(CROPS))

@@ -319,7 +319,7 @@ export const CROPS = {
     residue: 5,
     market: 1,
     marketNote:
-      "Sweet clover is ploughed in as green manure, so there is no crop to sell from that year (as of 2025).",
+      "Sweet clover is green manure, worked into the soil or left as mulch, so there is no crop to sell from that year (as of 2025).",
     yieldTHa: null,
     nextWheat: 0.92,
     judgement: j({ nFix: true }),
