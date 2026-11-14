@@ -1,0 +1,165 @@
+== A. 2001-2026 May-Aug precipitation and days with Tmax > 30 C ==
+year p_mjja_mm days_gt30
+2001 153.7 19
+2002 131.5 11
+2003 234.5 18
+2004 60.0 39
+2005 180.9 24
+2006 122.0 27
+2007 177.2 23
+2008 137.9 40
+2009 162.2 13
+2010 85.9 44
+2011 219.4 16
+2012 170.6 39
+2013 172.7 15
+2014 180.9 26
+2015 176.7 22
+2016 181.8 18
+2017 237.8 8
+2018 235.2 16
+2019 123.3 18
+2020 254.2 26
+2021 93.8 45
+2022 150.9 11
+2023 190.6 34
+2024 283.2 5
+2025 214.3 8
+2026 188.8 28
+median 2001-2026: p=176.9 mm, days>30=20.5 | mean p=173.8
+median 2001-2025: p=176.7 mm, days>30=19.0
+2021 p=93.8 mm (53% of 2001-2026 median), days>30=45 (median 20.5), rank p 3/26 (1=driest), rank hot 1/26 (1=hottest)
+2024 p=283.2 mm (160% of 2001-2026 median), days>30=5 (median 20.5), rank p 26/26 (1=driest), rank hot 26/26 (1=hottest)
+
+== B. Detail 2021 vs 2024 (baseline 1991-2020) ==
+p_mjja                     2021: 93.85 | 2024: 283.2
+p_mjja_pct_normal          2021: 56.55 | 2024: 170.65
+p_mjja_z                   2021: -1.38 | 2024: 2.24
+p_mjja_pctl                2021: 10.0 | 2024: 100.0
+p_month                    2021: {4: 17.3, 5: 10.0, 6: 11.2, 7: 68.7, 8: 4.0, 9: 25.0} | 2024: {4: 38.6, 5: 36.7, 6: 57.8, 7: 104.2, 8: 84.5, 9: 17.7}
+p_month_pct_normal         2021: {4: np.float64(57.8), 5: np.float64(22.3), 6: np.float64(30.5), 7: np.float64(145.7), 8: np.float64(10.8), 9: np.float64(89.3)} | 2024: {4: np.float64(128.5), 5: np.float64(82.1), 6: np.float64(157.4), 7: np.float64(221.2), 8: np.float64(225.6), 9: np.float64(63.3)}
+p_coldseason               2021: 142.17 | 2024: 180.53
+p_coldseason_pctl          2021: 86.67 | 2024: 96.67
+tmean_mjja                 2021: 20.63 | 2024: 16.82
+tmean_mjja_z               2021: 1.59 | 2024: -1.35
+hot30_mjja                 2021: 45 | 2024: 5
+hot32_mjja                 2021: 32 | 2024: 0
+hot35_mjja                 2021: 6 | 2024: 0
+tmax_peak                  2021: 40.42 | 2024: 31.64
+tmax_peak_date             2021: 2021-07-02 | 2024: 2024-06-16
+dry_spell_max_mjja         2021: 34 | 2024: 12
+dry_spell_max_jun_jul      2021: 17 | 2024: 12
+stage_dates                2021: {'emergence': '2021-05-22', 'anthesis_start': '2021-06-23', 'anthesis_end': '2021-06-29', 'maturity': '2021-07-27'} | 2024: {'emergence': '2024-05-29', 'anthesis_start': '2024-06-30', 'anthesis_end': '2024-07-08', 'maturity': '2024-08-06'}
+gdd0_sow_to_aug31          2021: 2345.6 | 2024: 1955.1
+anthesis_hot30             2021: 8 | 2024: 1
+anthesis_hot32             2021: 7 | 2024: 0
+grainfill_hot32            2021: 3 | 2024: 0
+grainfill_hot35            2021: 1 | 2024: 0
+frost0_emergence           2021: 0 | 2024: 0
+frost_m2_emergence         2021: 0 | 2024: 0
+frost0_anthesis            2021: 0 | 2024: 0
+frost0_late                2021: 0 | 2024: 0
+frost_m2_late              2021: 0 | 2024: 0
+first_autumn_frost         2021: 2021-09-21 | 2024: 2024-09-25
+et0_hg_mjja                2021: 631.86 | 2024: 493.37
+et0_pm_mjja                2021: 665.23 | 2024: 459.76
+cwb_mjja                   2021: -538.01 | 2024: -210.17
+cwb_mjja_z                 2021: -1.64 | 2024: 2.37
+p_over_et0_mjja            2021: 0.15 | 2024: 0.57
+htc_mjja                   2021: 0.37 | 2024: 1.33
+htc_jja                    2021: 0.42 | 2024: 1.39
+htc_jun_jul                2021: 0.62 | 2024: 1.3
+gwetroot_may1              2021: 0.7 | 2024: 0.76
+gwetroot_may1_pctl         2021: 80.0 | 2024: 100.0
+gwetroot_jun_jul           2021: 0.58 | 2024: 0.66
+gwetroot_jun_jul_pctl      2021: 40.0 | 2024: 100.0
+gwetroot_aug15_sep15       2021: 0.55 | 2024: 0.66
+gwetroot_aug15_sep15_pctl  2021: 1.67 | 2024: 100.0
+p_aug15_sep15              2021: 7.87 | 2024: 49.97
+p_aug15_sep15_pctl         2021: 0.0 | 2024: 73.33
+wetdays_aug15_sep15        2021: 4 | 2024: 11
+
+== C. Baseline 1991-2020 normals ==
+p_mjja                 mean=165.95 median=174.79 sd=52.28 min=60.03 max=254.15
+hot30_mjja             mean=24.03 median=21.50 sd=11.60 min=8.00 max=55.00
+hot32_mjja             mean=13.10 median=10.50 sd=9.57 min=0.00 max=44.00
+hot35_mjja             mean=3.33 median=2.00 sd=4.79 min=0.00 max=21.00
+dry_spell_max_mjja     mean=17.50 median=16.50 sd=4.95 min=10.00 max=32.00
+htc_mjja               mean=0.66 median=0.69 sd=0.22 min=0.22 max=1.05
+htc_jja                mean=0.64 median=0.68 sd=0.21 min=0.23 max=0.97
+et0_hg_mjja            mean=570.04 median=562.99 sd=33.79 min=523.87 max=646.45
+cwb_mjja               mean=-404.09 median=-390.48 sd=81.69 min=-585.08 max=-294.53
+tmean_mjja             mean=18.57 median=18.44 sd=1.30 min=15.96 max=21.68
+gdd0_sow_to_aug31      mean=2114.60 median=2101.07 sd=149.56 min=1832.50 max=2521.55
+gwetroot_jun_jul       mean=0.59 median=0.59 sd=0.03 min=0.55 max=0.65
+monthly P normals: {4: 30.0, 5: 44.6, 6: 36.7, 7: 47.1, 8: 37.5, 9: 28.0}
+HTC class counts 1991-2026: {'very severe drought': 5, 'severe drought': 3, 'moderate drought': 10, 'mild drought / insufficient moisture': 16, 'adequate moisture': 2, 'excess moisture': 0}
+
+== D. ET0: Hargreaves vs FAO-56 PM, MJJA sums ==
+n=36  HG mean=569  PM mean=588  ratio HG/PM=0.973  r=0.966
+EVLAND (MERRA-2 actual ET) MJJA: 2021=242 mm 2024=374 mm
+Ra formula vs POWER TOA_SW_DWN: mean bias -0.090 MJ, r=0.9998
+
+== E. Trends 1991-2025 (Theil-Sen per decade, Mann-Kendall) ==
+MJJA precipitation (mm)        Sen  +17.830 /decade  MK Z=+1.68 p=0.094  not significant | 1991-2005 mean 156.07 vs 2011-2025 mean 192.35
+May precipitation (mm)         Sen   +2.154 /decade  MK Z=+0.68 p=0.495  not significant | 1991-2005 mean 37.74 vs 2011-2025 mean 46.54
+June precipitation (mm)        Sen   +1.977 /decade  MK Z=+0.51 p=0.609  not significant | 1991-2005 mean 37.13 vs 2011-2025 mean 44.44
+July precipitation (mm)        Sen   +5.157 /decade  MK Z=+1.51 p=0.132  not significant | 1991-2005 mean 44.58 vs 2011-2025 mean 57.37
+Aug precipitation (mm)         Sen   +4.117 /decade  MK Z=+0.85 p=0.394  not significant | 1991-2005 mean 36.61 vs 2011-2025 mean 44.00
+Nov-Mar precipitation (mm)     Sen   +7.343 /decade  MK Z=+2.13 p=0.033  SIGNIFICANT | 1991-2005 mean 113.43 vs 2011-2025 mean 129.80
+Annual precipitation (mm)      Sen  +34.824 /decade  MK Z=+2.30 p=0.021  SIGNIFICANT | 1991-2005 mean 351.17 vs 2011-2025 mean 419.84
+MJJA mean T (C)                Sen   -0.028 /decade  MK Z=-0.09 p=0.932  not significant | 1991-2005 mean 18.59 vs 2011-2025 mean 18.41
+Annual mean T (C)              Sen   -0.153 /decade  MK Z=-0.65 p=0.514  not significant | 1991-2005 mean 3.39 vs 2011-2025 mean 3.13
+Days Tmax>=30 MJJA             Sen   -1.579 /decade  MK Z=-0.90 p=0.370  not significant | 1991-2005 mean 24.53 vs 2011-2025 mean 20.60
+Days Tmax>=35 MJJA             Sen   +0.000 /decade  MK Z=-0.13 p=0.894  not significant | 1991-2005 mean 3.40 vs 2011-2025 mean 2.73
+Longest dry spell MJJA (d)     Sen   -1.053 /decade  MK Z=-1.14 p=0.254  not significant | 1991-2005 mean 17.93 vs 2011-2025 mean 16.53
+HTC May-Aug                    Sen   +0.070 /decade  MK Z=+1.51 p=0.132  not significant | 1991-2005 mean 0.63 vs 2011-2025 mean 0.78
+ET0 Hargreaves MJJA (mm)       Sen   -5.751 /decade  MK Z=-0.77 p=0.443  not significant | 1991-2005 mean 571.50 vs 2011-2025 mean 560.38
+P - ET0 MJJA (mm)              Sen  +19.901 /decade  MK Z=+1.42 p=0.156  not significant | 1991-2005 mean -415.44 vs 2011-2025 mean -368.03
+GDD0 sowing->31 Aug            Sen   -9.050 /decade  MK Z=-0.37 p=0.712  not significant | 1991-2005 mean 2119.51 vs 2011-2025 mean 2095.01
+GWETROOT Jun-Jul               Sen   +0.008 /decade  MK Z=+1.89 p=0.059  not significant | 1991-2005 mean 0.59 vs 2011-2025 mean 0.60
+same, full record 1981-2025 for T and P (annual + MJJA):
+MJJA precipitation (mm)        Sen   +8.393 /decade  MK Z=+1.48 p=0.140
+MJJA mean T (C)                Sen   -0.071 /decade  MK Z=-0.36 p=0.717
+Days Tmax>=30 MJJA             Sen   -1.277 /decade  MK Z=-1.06 p=0.290
+
+== F. Soil wetness monthly means and percentile vs 1991-2020, 2021 and 2024 ==
+GWETTOP 2021 5: 0.64 (p43) 6: 0.52 (p13) 7: 0.52 (p33) 8: 0.42 (p13) 9: 0.44 (p7)
+GWETTOP 2024 5: 0.76 (p100) 6: 0.68 (p97) 7: 0.67 (p100) 8: 0.68 (p100) 9: 0.65 (p100)
+GWETROOT 2021 5: 0.65 (p57) 6: 0.57 (p20) 7: 0.58 (p53) 8: 0.56 (p17) 9: 0.55 (p7)
+GWETROOT 2024 5: 0.74 (p100) 6: 0.66 (p97) 7: 0.65 (p100) 8: 0.65 (p100) 9: 0.64 (p100)
+GWETPROF 2021 5: 0.67 (p63) 6: 0.60 (p30) 7: 0.59 (p57) 8: 0.57 (p37) 9: 0.56 (p15)
+GWETPROF 2024 5: 0.75 (p100) 6: 0.69 (p97) 7: 0.66 (p100) 8: 0.66 (p100) 9: 0.65 (p100)
+GWETROOT all-days range 1991-2025: min 0.44 max 0.83
+FROST_DAYS param vs Tmin<=0, May-Sep 2021/2024: [(4, 4), (8, 8)]
+POWER GDD4_4 sum 15 May-31 Aug 2021/2024: [1811.0, 1455.0]
+
+== G. Second opinion inside POWER: IMERG_PRECTOT (UTC) vs PRECTOTCORR (UTC), MJJA sums ==
+2001 MERRA2corr=154 IMERG=192
+2002 MERRA2corr=132 IMERG=208
+2003 MERRA2corr=235 IMERG=316
+2004 MERRA2corr=60 IMERG=68
+2005 MERRA2corr=180 IMERG=198
+2006 MERRA2corr=122 IMERG=164
+2007 MERRA2corr=177 IMERG=191
+2008 MERRA2corr=138 IMERG=174
+2009 MERRA2corr=162 IMERG=196
+2010 MERRA2corr=86 IMERG=78
+2011 MERRA2corr=219 IMERG=252
+2012 MERRA2corr=165 IMERG=197
+2013 MERRA2corr=173 IMERG=285
+2014 MERRA2corr=181 IMERG=180
+2015 MERRA2corr=177 IMERG=226
+2016 MERRA2corr=182 IMERG=196
+2017 MERRA2corr=238 IMERG=260
+2018 MERRA2corr=235 IMERG=255
+2019 MERRA2corr=123 IMERG=138
+2020 MERRA2corr=254 IMERG=208
+2021 MERRA2corr=94 IMERG=146
+2022 MERRA2corr=150 IMERG=167
+2023 MERRA2corr=191 IMERG=260
+2024 MERRA2corr=283 IMERG=317
+2025 MERRA2corr=216 IMERG=239
+n=25 mean MERRA2corr=173 IMERG=204, r=0.86, IMERG/MERRA2=1.18
+2021 MERRA2corr 94 mm = 54% of its 2001-2025 mean | IMERG 146 mm = 71% of its mean
+2024 MERRA2corr 283 mm = 164% of its 2001-2025 mean | IMERG 317 mm = 155% of its mean

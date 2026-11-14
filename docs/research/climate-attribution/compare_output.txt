@@ -1,0 +1,24 @@
+
+## POWER/MERRA-2
+MJJA precip mm  mean  168.90 | 2021   93.85 (rank  4 of 35, 1=lowest) | 2024  283.20 (rank 35) | r vs POWER 1.00 | bias vs POWER   +0.00 | Sen +17.830/decade p=0.094
+days Tmax>30    mean   23.49 | 2021   45.00 (rank 34 of 35, 1=lowest) | 2024    5.00 (rank  1) | r vs POWER 1.00 | bias vs POWER   +0.00 | Sen -1.875/decade p=0.363
+MJJA mean T     mean   18.59 | 2021   20.63 (rank 33 of 35, 1=lowest) | 2024   16.82 (rank  4) | r vs POWER 1.00 | bias vs POWER   +0.00 | Sen -0.028/decade p=0.932
+peak Tmax       mean   36.16 | 2021   40.42 (rank 35 of 35, 1=lowest) | 2024   31.64 (rank  1) | r vs POWER 1.00 | bias vs POWER   +0.00 | Sen -0.300/decade p=0.523
+  2021 precip = 57% of 1991-2020 mean; 2024 = 171%
+
+## OpenMeteo-ERA5(0.25deg)
+MJJA precip mm  mean  185.67 | 2021   93.50 (rank  3 of 35, 1=lowest) | 2024  293.90 (rank 35) | r vs POWER 0.79 | bias vs POWER  +16.77 | Sen +2.360/decade p=0.776
+days Tmax>30    mean   17.49 | 2021   46.00 (rank 34 of 35, 1=lowest) | 2024    7.00 (rank  5) | r vs POWER 0.86 | bias vs POWER   -6.00 | Sen +1.304/decade p=0.286
+MJJA mean T     mean   18.31 | 2021   21.09 (rank 34 of 35, 1=lowest) | 2024   17.28 (rank  6) | r vs POWER 0.94 | bias vs POWER   -0.28 | Sen +0.293/decade p=0.196
+peak Tmax       mean   35.24 | 2021   39.40 (rank 35 of 35, 1=lowest) | 2024   33.50 (rank  7) | r vs POWER 0.90 | bias vs POWER   -0.92 | Sen +0.158/decade p=0.599
+  2021 precip = 51% of 1991-2020 mean; 2024 = 160%
+
+## OpenMeteo-bestmatch
+MJJA precip mm  mean  190.73 | 2021   81.20 (rank  3 of 35, 1=lowest) | 2024  309.20 (rank 34) | r vs POWER 0.76 | bias vs POWER  +21.84 | Sen +10.154/decade p=0.394
+days Tmax>30    mean   14.20 | 2021   43.00 (rank 34 of 35, 1=lowest) | 2024    7.00 (rank 10) | r vs POWER 0.86 | bias vs POWER   -9.29 | Sen +1.429/decade p=0.279
+MJJA mean T     mean   18.43 | 2021   20.98 (rank 34 of 35, 1=lowest) | 2024   17.12 (rank  6) | r vs POWER 0.93 | bias vs POWER   -0.16 | Sen +0.377/decade p=0.140
+peak Tmax       mean   34.53 | 2021   37.50 (rank 31 of 35, 1=lowest) | 2024   33.00 (rank  8) | r vs POWER 0.86 | bias vs POWER   -1.63 | Sen +0.455/decade p=0.255
+  2021 precip = 44% of 1991-2020 mean; 2024 = 168%
+
+Daily Tmax May-Aug, POWER minus OpenMeteo-ERA5(0.25deg): mean +0.71 C, RMSD 1.84 C, r=0.959, n=4428
+2021-07-02 Tmax: POWER 40.4, OpenMeteo-ERA5(0.25deg) 39.4
