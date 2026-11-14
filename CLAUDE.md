@@ -2,7 +2,7 @@
 
 ## 1. Identity and status
 - **Repo:** `https://github.com/pironc/nasa-space-apps-challenge-2026.git`
-- **Event:** NASA Space Apps Challenge 2026, Singapore local event (virtual). Hacking window: Sat 14 Nov 09:00 to **Sun 15 Nov 23:59 Singapore time**. This machine's clock is UTC+5, so the deadline reads **20:59 Sunday** locally. Saving the project page after the deadline voids eligibility.
+- **Event:** NASA Space Apps Challenge 2026, **Universal Event** (online; the team moved from the Singapore event on 14 Nov). Deadline per the event page, read on 14 Nov: "November 15 at 11:59 PM local time, according to the team's creator". The creator's clock is this machine's (UTC+5), so plan for **Sunday 15 Nov 23:59 on this machine** and confirm the time shown on the team page. Saving the project page after the deadline voids eligibility.
 - **Challenge:** *Field Shift: Adapting Farms with NASA Data*. Official text: `docs/research/space-apps-rules/field_shift_official.md`.
 - **Product:** a no-login web app where a farmer or agronomist watches crop fields in the northern Kazakhstan grain belt on a map, scrubs back through time, gets stress alerts on the fields they saved, and compares three crop-rotation strategies with evidence, data gaps and local-review risks.
 - **Status (14 Nov, evening):** the app works end to end. Three demo fields are precomputed from live data, the analysis API analyses a drawn field in 20 to 45 s, and one container serves everything (`docker build -t fieldshift .`). Not done: deployment, the deck, a real-phone check. Research and the independent plan review are in `docs/research/`. Where the notes in sections 8 and 9 and the code disagree, **the code and `backend/app/constants.py` are current**; the review in `docs/research/plan-review/README.md` explains why the rules changed.
@@ -173,7 +173,7 @@ Still open:
   - Sentinel-2: "Contains modified Copernicus Sentinel data 2018-2026"
   - EOX: "EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data <year>)"
   - OpenFreeMap © OpenMapTiles, data from OpenStreetMap; accessed through Microsoft Planetary Computer
-- [ ] Submit early on Sunday, resubmit as the app improves, last save before 23:59 Singapore time (20:59 on this machine)
+- [ ] Submit early on Sunday, resubmit as the app improves, last save well before 23:59 Sunday local time (Universal Event rule: the team creator's local time)
 
 ### Going online
 - [ ] Google Cloud account; the $300 trial is for new accounts only and does not pay for LLM API calls
