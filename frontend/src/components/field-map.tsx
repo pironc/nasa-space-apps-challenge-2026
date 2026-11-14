@@ -71,7 +71,7 @@ function DrawToolbar({ onSave }: { onSave: (f: NewField) => void }) {
   }
 
   return (
-    <div className="absolute top-3 left-3 z-10 flex max-w-[calc(100%-4.5rem)] items-start gap-2">
+    <div className="absolute top-3 left-3 z-10 flex max-w-[calc(100%-4.5rem)] items-start gap-2 font-sans text-sm">
       <SidebarTrigger variant="outline" className="size-8 bg-background shadow-sm" />
       {!active ? (
         <Button

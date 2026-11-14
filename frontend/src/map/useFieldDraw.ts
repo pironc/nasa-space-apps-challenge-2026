@@ -1,13 +1,7 @@
 import area from "@turf/area"
 import type { Feature, Polygon } from "geojson"
 import { useEffect, useRef, useState } from "react"
-import {
-  TerraDraw,
-  TerraDrawPolygonMode,
-  TerraDrawSelectMode,
-  ValidateMaxAreaSquareMeters,
-  ValidateNotSelfIntersecting,
-} from "terra-draw"
+import { TerraDraw, TerraDrawPolygonMode, TerraDrawSelectMode, ValidateNotSelfIntersecting } from "terra-draw"
 import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter"
 import { useMap } from "@/components/ui/map"
 
@@ -36,11 +30,9 @@ export function useFieldDraw() {
       adapter: new TerraDrawMapLibreGLAdapter({ map }),
       modes: [
         new TerraDrawPolygonMode({
-          validation: (f, ctx) => {
-            if (ctx.updateType !== "finish" && ctx.updateType !== "commit") return { valid: true }
-            const simple = ValidateNotSelfIntersecting(f)
-            return simple.valid ? ValidateMaxAreaSquareMeters(f, MAX_HA * 10_000) : simple
-          },
+          // Size is checked by the caller: rejecting it here makes the outline silently collapse.
+          validation: (f, ctx) =>
+            ctx.updateType === "finish" || ctx.updateType === "commit" ? ValidateNotSelfIntersecting(f) : { valid: true },
         }),
         new TerraDrawSelectMode({
           flags: {
