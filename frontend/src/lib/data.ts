@@ -32,7 +32,7 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
   return r.json()
 }
 
-export const loadPresets = () => json<Preset[]>("/presets/index.json")
+export const loadPresets = () => json<Preset[]>(`${import.meta.env.BASE_URL}presets/index.json`)
 
 /** One analysis per field and set of land-use answers, for the life of the page. */
 const cache = new Map<string, FieldAnalysis>()
@@ -49,7 +49,7 @@ export const analyseBody = (geometry: SavedField["geometry"], answers: Record<st
 
 async function load(field: SavedField, answers: Record<string, Declared>) {
   const a = field.preset
-    ? await json<FieldAnalysis>(`/presets/${field.id}.json`)
+    ? await json<FieldAnalysis>(`${import.meta.env.BASE_URL}presets/${field.id}.json`)
     : await json<FieldAnalysis>("/api/analyse", {
         method: "POST",
         headers: { "content-type": "application/json" },
