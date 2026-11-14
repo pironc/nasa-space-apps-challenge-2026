@@ -5,28 +5,51 @@ import { AnalysisPanel, TABS, type TabId } from "@/components/analysis-panel"
 import { AppSidebar } from "@/components/app-sidebar"
 import { FieldMap } from "@/components/field-map"
 import { TimeSlider } from "@/components/time-slider"
-import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+} from "@/components/ui/drawer"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { loadPresets, midJuly, useAnalysis, type Declared } from "@/lib/data"
-import { presetToField, useSavedFields, type RotationId, type SavedField } from "@/lib/fields"
-import { DEFAULT_DATE, defaultLayerState, snapDate, type LayerId, type LayerState } from "@/lib/layers"
+import {
+  presetToField,
+  useSavedFields,
+  type RotationId,
+  type SavedField,
+} from "@/lib/fields"
+import {
+  DEFAULT_DATE,
+  defaultLayerState,
+  snapDate,
+  type LayerId,
+  type LayerState,
+} from "@/lib/layers"
 
 const query = new URLSearchParams(location.search)
-const tabOf = (q: URLSearchParams) => TABS.find((t) => t === q.get("tab")) ?? "strategies"
+const tabOf = (q: URLSearchParams) =>
+  TABS.find((t) => t === q.get("tab")) ?? "strategies"
 const NO_ANSWERS = {}
 
 export function App() {
   const isMobile = useIsMobile()
   const { fields: saved, add, patch, remove, restore } = useSavedFields()
   const [presets, setPresets] = useState<SavedField[]>([])
-  const [date, setDate] = useState(() => snapDate(query.get("date") ?? DEFAULT_DATE))
-  const [selectedId, setSelectedId] = useState<string | null>(query.get("field"))
+  const [date, setDate] = useState(() =>
+    snapDate(query.get("date") ?? DEFAULT_DATE)
+  )
+  const [selectedId, setSelectedId] = useState<string | null>(
+    query.get("field")
+  )
   const [tab, setTab] = useState<TabId>(() => tabOf(query))
   const [layers, setLayers] = useState<LayerState>(defaultLayerState)
   // "Crop or fallow?" answers, per field then year, for this visit. A drawn field is analysed again with them.
-  const [answers, setAnswers] = useState<Record<string, Record<string, Declared>>>({})
+  const [answers, setAnswers] = useState<
+    Record<string, Record<string, Declared>>
+  >({})
   const fields = useMemo(() => [...presets, ...saved], [presets, saved])
   const selected = fields.find((f) => f.id === selectedId)
   const fieldAnswers = (selectedId && answers[selectedId]) || NO_ANSWERS
@@ -47,15 +70,21 @@ export function App() {
         setPresets(list.map(presetToField))
         // A link to a field drawn in another browser cannot open here: say so and show a demo field.
         const asked = query.get("field")
-        const unknown = asked !== null && !list.some((p) => p.id === asked) && !saved.some((f) => f.id === asked)
+        const unknown =
+          asked !== null &&
+          !list.some((p) => p.id === asked) &&
+          !saved.some((f) => f.id === asked)
         if (unknown) {
-          toast("That field is saved only in the browser that drew it. Showing a demo field instead.")
+          toast(
+            "That field is saved only in the browser that drew it. Showing a demo field instead."
+          )
           history.replaceState(null, "", location.pathname) // so Back does not return to the dead link
         }
         // A first visit lands on a finished analysis: the first demo field in its stressed year.
         if (list[0] && (asked === null || unknown)) {
           setSelectedId(list[0].id)
-          if (!query.has("date") || unknown) setDate(snapDate(midJuly(list[0].demoYears[0])))
+          if (!query.has("date") || unknown)
+            setDate(snapDate(midJuly(list[0].demoYears[0])))
         }
       },
       () => toast("The demo fields could not be loaded.")
@@ -71,7 +100,11 @@ export function App() {
     if (selectedId) q.set("field", selectedId)
     if (tab !== "strategies") q.set("tab", tab)
     const shown = new URLSearchParams(location.search).get("field")
-    history[shown && shown !== selectedId ? "pushState" : "replaceState"](null, "", `?${q}`)
+    history[shown && shown !== selectedId ? "pushState" : "replaceState"](
+      null,
+      "",
+      `?${q}`
+    )
   }, [date, selectedId, tab])
 
   useEffect(() => {
@@ -86,20 +119,26 @@ export function App() {
   }, [])
 
   const onLayerChange = useCallback(
-    (id: LayerId, patch: Partial<LayerState[LayerId]>) => setLayers((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } })),
+    (id: LayerId, patch: Partial<LayerState[LayerId]>) =>
+      setLayers((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } })),
     []
   )
 
   const onDelete = (field: SavedField) => {
     remove(field.id)
     if (selectedId === field.id) setSelectedId(null)
-    toast(`Deleted ${field.name}`, { action: { label: "Undo", onClick: () => restore(field) } })
+    toast(`Deleted ${field.name}`, {
+      action: { label: "Undo", onClick: () => restore(field) },
+    })
   }
 
   // A saved field remembers its rotation; a demo field takes the change for this visit only.
   const onRotation = (rotation: RotationId) => {
     if (!selected) return
-    if (selected.preset) setPresets((prev) => prev.map((p) => (p.id === selected.id ? { ...p, rotation } : p)))
+    if (selected.preset)
+      setPresets((prev) =>
+        prev.map((p) => (p.id === selected.id ? { ...p, rotation } : p))
+      )
     else patch(selected.id, { rotation })
   }
 
@@ -126,7 +165,8 @@ export function App() {
   )
   // Strategy cards side by side need room; the other tabs read better narrow. The wide panel gives way
   // (down to two cards across) before the map gets narrower than 420 px. Below 1280 px the panel stays narrow.
-  const wide = !!selected && tab === "strategies" && analysis.status !== "failed"
+  const wide =
+    !!selected && tab === "strategies" && analysis.status !== "failed"
   const drawer = isMobile && !!selected
 
   return (
@@ -138,7 +178,11 @@ export function App() {
         onLayerChange={onLayerChange}
         presets={presets}
         fields={saved}
-        obtained={analysis.status === "ready" ? analysis.analysis.generatedAt : undefined}
+        obtained={
+          analysis.status === "ready"
+            ? analysis.analysis.generatedAt
+            : undefined
+        }
         selectedId={selectedId}
         onSelect={select}
         onDelete={onDelete}
@@ -155,25 +199,44 @@ export function App() {
             // the map changes width with the panel, and on a phone the drawer covers most of it
             layout={drawer ? "drawer" : wide ? "wide" : "narrow"}
             onSave={(f) => {
-              const field = { ...f, id: crypto.randomUUID(), createdAt: new Date().toISOString() }
+              const field = {
+                ...f,
+                id: crypto.randomUUID(),
+                createdAt: new Date().toISOString(),
+              }
               add(field)
               setSelectedId(field.id)
             }}
           />
           {/* on a narrow map the attribution wraps onto two lines: leave it room */}
-          <div className="absolute inset-x-3 bottom-16 z-10 mx-auto max-w-md @2xl:bottom-10">
+          <div
+            className={`absolute inset-x-3 z-10 mx-auto max-w-md ${drawer ? "bottom-[calc(50dvh+0.75rem)]" : "bottom-16 @2xl:bottom-10"}`}
+          >
             <TimeSlider date={date} onChange={setDate} />
           </div>
         </div>
-        {!isMobile && <aside className={`w-88 shrink-0 border-l bg-background ${wide ? "xl:w-[56rem] xl:min-w-88 xl:shrink" : ""}`}>{panel}</aside>}
+        {!isMobile && (
+          <aside
+            aria-label="Field analysis"
+            className={`w-88 min-w-[280px] shrink border-l bg-background ${wide ? "xl:w-[56rem] xl:min-w-88" : ""}`}
+          >
+            {panel}
+          </aside>
+        )}
       </SidebarInset>
       {/* Mounted only while a field is selected: vaul's non-modal mode frees the page behind the
           drawer once, on mount, so a drawer that opens later would leave the map untouchable. */}
       {drawer && selected && (
-        <Drawer modal={false} open onOpenChange={(open) => !open && setSelectedId(null)}>
-          <DrawerContent className="max-h-[80dvh]">
+        <Drawer
+          modal={false}
+          open
+          onOpenChange={(open) => !open && setSelectedId(null)}
+        >
+          <DrawerContent className="data-[vaul-drawer-direction=bottom]:max-h-[50dvh]">
             <DrawerTitle className="sr-only">{selected.name}</DrawerTitle>
-            <DrawerDescription className="sr-only">Field analysis</DrawerDescription>
+            <DrawerDescription className="sr-only">
+              Field analysis
+            </DrawerDescription>
             {panel}
           </DrawerContent>
         </Drawer>
