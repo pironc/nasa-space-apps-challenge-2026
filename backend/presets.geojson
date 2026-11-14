@@ -1,0 +1,20 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "kostanay-fyodorov",
+    "name": "Fyodorov north",
+    "region": "Kostanay region",
+    "note": "Placeholder outline: a rectangle on cropland, not a surveyed field boundary. Drought year 2021 against the good year 2024.",
+    "rotation": "wwww",
+    "demoYears": [2021, 2024]
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [[[62.7296, 53.788], [62.7704, 53.788], [62.7704, 53.812], [62.7296, 53.812], [62.7296, 53.788]]]
+   }
+  }
+ ]
+}

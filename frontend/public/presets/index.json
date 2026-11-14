@@ -1,11 +1,11 @@
 [
  {
   "id": "kostanay-fyodorov",
-  "name": "Fyodorov north (sample)",
+  "name": "Fyodorov north",
   "region": "Kostanay region",
-  "note": "SYNTHETIC SAMPLE DATA for building the UI. Replaced by real satellite data.",
+  "note": "Placeholder outline: a rectangle on cropland, not a surveyed field boundary. Drought year 2021 against the good year 2024.",
   "rotation": "wwww",
-  "areaHa": 412.0,
+  "areaHa": 716.7,
   "geometry": {
    "type": "Polygon",
    "coordinates": [
