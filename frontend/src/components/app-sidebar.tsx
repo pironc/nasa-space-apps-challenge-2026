@@ -94,7 +94,7 @@ export function AppSidebar({
         className="flex min-h-0 flex-1 flex-col"
       >
         <SidebarHeader className="px-4 pt-4 pb-2">
-          <h1 className="text-base font-semibold tracking-tight">
+          <h1 className="text-xl leading-tight font-semibold">
             Field Shift
           </h1>
           <p className="text-xs text-muted-foreground">

@@ -406,7 +406,7 @@ export function SeasonsTab({
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div className="flex flex-col gap-1">
-            <h3 className="text-sm font-medium">
+            <h3 className="text-base font-semibold">
               Sentinel-2 detail since 2018 (ESA)
             </h3>
             <p className="text-xs text-muted-foreground">
@@ -587,7 +587,7 @@ export function SeasonsTab({
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">NASA MODIS record since 2000</h3>
+          <h3 className="text-base font-semibold">NASA MODIS record since 2000</h3>
           <p className="text-xs text-pretty text-muted-foreground">
             Peak summer greenness (NDVI) each year, from 250 m pixels that
             include neighbouring land. Summers that read as bare, which may be

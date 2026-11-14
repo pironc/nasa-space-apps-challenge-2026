@@ -15,7 +15,8 @@
     "check:data": "node --experimental-strip-types -e \"for (const f of ['data', 'layers', 'fields']) import('./src/lib/' + f + '.ts').then((m) => m.selfCheck())\""
   },
   "dependencies": {
-    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "@fontsource-variable/public-sans": "^5.3.0",
     "@tailwindcss/vite": "^4",
     "@turf/area": "^7.4.0",
     "class-variance-authority": "^0.7.1",
