@@ -65,7 +65,7 @@ export function AppSidebar({
             }}
             className="h-auto py-1.5"
           >
-            <div className="flex min-w-0 flex-col leading-tight">
+            <div className="flex min-w-0 flex-col gap-1 leading-tight">
               <span className="truncate font-medium">{f.name}</span>
               <span className="truncate text-xs text-muted-foreground tabular-nums">
                 {f.preset && `${f.preset.region} · `}
@@ -150,7 +150,7 @@ export function AppSidebar({
                         checked={state.on}
                         onCheckedChange={(on) => onLayerChange(l.id, { on })}
                       />
-                      <div className="min-w-0 flex-1 leading-tight">
+                      <div className="flex min-w-0 flex-1 flex-col gap-1 leading-tight">
                         <Label
                           htmlFor={`layer-${l.id}`}
                           className="text-sm font-medium"
@@ -187,7 +187,7 @@ export function AppSidebar({
                             <img
                               src={l.legend}
                               alt=""
-                              className="w-full rounded-sm border bg-white"
+                              className="h-auto w-full rounded-sm border bg-white"
                               loading="lazy"
                             />
                             <figcaption className="text-xs text-muted-foreground">

@@ -164,7 +164,7 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
         <ol className="grid grid-cols-2 gap-1 @xs/strategy:grid-cols-4">
           {strategy.rotation.map((id, i) => (
             <li key={i} className="rounded-md border px-2 py-1 leading-tight">
-              <div className="text-[0.6875rem] text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 Year {i + 1}
               </div>
               <div className="text-xs font-medium">{cropLabel(id)}</div>
