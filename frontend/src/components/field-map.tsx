@@ -9,10 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Map, MapControls, MapGeoJSON, useMap } from "@/components/ui/map"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { bounds, centre, formatHa, ROTATIONS, type RotationId, type SavedField } from "@/lib/fields"
+import { bounds, centre, formatHa, MAX_HA, ROTATIONS, sizeProblem, type RotationId, type SavedField } from "@/lib/fields"
 import { BASEMAP, LAYERS, type LayerState } from "@/lib/layers"
 import { RasterLayer } from "@/map/RasterLayer"
-import { MAX_HA, useFieldDraw } from "@/map/useFieldDraw"
+import { useFieldDraw } from "@/map/useFieldDraw"
 
 // The one accent. Reds, oranges, yellows and greens belong to the data underneath.
 const ACCENT = "#256abf"
@@ -48,25 +48,36 @@ function FieldLabels({ data }: { data: FeatureCollection<Polygon, FieldProps> })
   return null
 }
 
-/** Brings the selected field into view, also on first load from a shared link. */
-function FitToField({ field }: { field: SavedField | undefined }) {
+/** What surrounds the map: a narrow or wide panel beside it, or (on a phone) a drawer over its lower part. */
+type Layout = "narrow" | "wide" | "drawer"
+
+/** Brings the selected field into view, also on first load from a shared link and when the map changes size. */
+function FitToField({ field, layout }: { field: SavedField | undefined; layout: Layout }) {
   const { map, isLoaded } = useMap()
   const id = field?.id
   useEffect(() => {
-    if (map && isLoaded && field) map.fitBounds(bounds(field.geometry), { padding: 96, maxZoom: 13, duration: 600 })
-    // refit only when the selection changes, not when the field object does
+    if (!map || !isLoaded || !field) return
+    map.resize() // the panel has just changed width: measure the map now rather than after the fit
+    const { clientWidth: w, clientHeight: h } = map.getContainer()
+    // On a phone the drawer covers the lower 80% of the map, so the field goes in the strip left above it.
+    // Beside a wide panel the map is narrow: keep the padding to a fifth of it.
+    const padding = layout === "drawer" ? { top: 56, bottom: Math.round(h * 0.8) + 12, left: 24, right: 24 } : Math.min(96, Math.round(w / 5))
+    map.fitBounds(bounds(field.geometry), { padding, maxZoom: 13, duration: 600 })
+    // refit when the selection or the layout changes, not when the field object does
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, isLoaded, id])
+  }, [map, isLoaded, id, layout])
   return null
 }
 
 type NewField = Pick<SavedField, "name" | "rotation" | "areaHa" | "geometry">
 
-function DrawToolbar({ onSave }: { onSave: (f: NewField) => void }) {
+function DrawToolbar({ onStart, onSave }: { onStart: () => void; onSave: (f: NewField) => void }) {
   const draw = useFieldDraw()
   const [active, setActive] = useState(false)
   const [name, setName] = useState("")
   const [rotation, setRotation] = useState<RotationId>("wwww")
+  const problem = draw.shape && sizeProblem(draw.shape.ha)
+  // an outline being drawn starts small, so only "too large" is said before it is closed
   const tooLarge = !!draw.shape && draw.shape.ha > MAX_HA
 
   const cancel = () => {
@@ -83,6 +94,7 @@ function DrawToolbar({ onSave }: { onSave: (f: NewField) => void }) {
           variant="outline"
           className="bg-background shadow-sm"
           onClick={() => {
+            onStart()
             draw.start()
             setActive(true)
           }}
@@ -93,9 +105,7 @@ function DrawToolbar({ onSave }: { onSave: (f: NewField) => void }) {
       ) : !draw.closed ? (
         <div className="flex items-center gap-3 rounded-lg border bg-background py-1.5 pr-1.5 pl-3 text-sm shadow-sm">
           <span className={tooLarge ? "text-destructive" : "text-muted-foreground"}>
-            {tooLarge
-              ? `Over ${MAX_HA.toLocaleString("en-GB")} ha. Outline a single field.`
-              : "Click each corner of the field, then the first corner again to close it."}
+            {tooLarge ? problem : "Click each corner of the field, then the first corner again to close it."}
           </span>
           {draw.shape && <span className="font-medium tabular-nums">{formatHa(draw.shape.ha)}</span>}
           <Button size="sm" variant="ghost" onClick={cancel}>
@@ -107,7 +117,7 @@ function DrawToolbar({ onSave }: { onSave: (f: NewField) => void }) {
           className="flex w-72 flex-col gap-3 rounded-lg border bg-background p-3 shadow-sm"
           onSubmit={(e) => {
             e.preventDefault()
-            if (!draw.shape || tooLarge) return
+            if (!draw.shape || problem) return
             onSave({ name: name.trim() || "Unnamed field", rotation, areaHa: draw.shape.ha, geometry: draw.shape.polygon })
             cancel()
           }}
@@ -115,7 +125,7 @@ function DrawToolbar({ onSave }: { onSave: (f: NewField) => void }) {
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-sm font-medium">New field</span>
             {draw.shape && (
-              <span className={tooLarge ? "text-sm text-destructive tabular-nums" : "text-sm text-muted-foreground tabular-nums"}>
+              <span className={problem ? "text-sm text-destructive tabular-nums" : "text-sm text-muted-foreground tabular-nums"}>
                 {formatHa(draw.shape.ha)}
               </span>
             )}
@@ -140,12 +150,18 @@ function DrawToolbar({ onSave }: { onSave: (f: NewField) => void }) {
             </Select>
             <p className="text-xs text-muted-foreground">Satellites cannot tell which crop is sown, so this comes from you.</p>
           </div>
-          <p className="text-xs text-muted-foreground">Drag a corner on the map to adjust the outline.</p>
+          {problem ? (
+            <p aria-live="polite" className="text-xs text-destructive">
+              {problem} Drag a corner on the map to change the outline; it cannot be saved at this size.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">Drag a corner on the map to adjust the outline.</p>
+          )}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={cancel}>
               Discard
             </Button>
-            <Button type="submit" disabled={tooLarge}>
+            <Button type="submit" disabled={!!problem}>
               Save field
             </Button>
           </div>
@@ -161,10 +177,11 @@ type Props = {
   fields: SavedField[]
   selectedId: string | null
   onSelect: (id: string | null) => void
+  layout: Layout
   onSave: (f: NewField) => void
 }
 
-export function FieldMap({ date, layers, fields, selectedId, onSelect, onSave }: Props) {
+export function FieldMap({ date, layers, fields, selectedId, onSelect, layout, onSave }: Props) {
   const year = +date.slice(0, 4)
 
   const data = useMemo<FeatureCollection<Polygon, FieldProps>>(
@@ -204,9 +221,10 @@ export function FieldMap({ date, layers, fields, selectedId, onSelect, onSave }:
       ))}
       <MapGeoJSON data={data} promoteId="id" interactive fillPaint={FILL} linePaint={LINE} onClick={(e) => onSelect(e.feature.properties.id)} />
       <FieldLabels data={data} />
-      <FitToField field={fields.find((f) => f.id === selectedId)} />
+      <FitToField field={fields.find((f) => f.id === selectedId)} layout={layout} />
       <MapControls position="top-right" />
-      <DrawToolbar onSave={onSave} />
+      {/* On a phone the drawer leaves too little map to draw on: starting an outline closes it. */}
+      <DrawToolbar onStart={() => layout === "drawer" && onSelect(null)} onSave={onSave} />
     </Map>
   )
 }

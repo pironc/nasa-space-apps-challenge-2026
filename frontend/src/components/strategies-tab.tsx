@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { FieldAnalysis, Indicator, Priorities, Strategy } from "@/lib/analysis"
+import { seasonHeadline } from "@/lib/data"
 import type { RotationId } from "@/lib/fields"
-import { compareStrategies, cropLabel } from "@/lib/rotation"
+import { compareStrategies, cropLabel, DEFAULT_PRIORITIES } from "@/lib/rotation"
 
 const PRIORITIES: { key: keyof Priorities; label: string }[] = [
   { key: "water", label: "Save water" },
@@ -31,7 +32,7 @@ function Dial({ id, label, word, value, onChange }: { id: string; label: string;
 }
 
 /** One hue for every bar: the level word carries the reading, the bar the relative size. */
-function Meter({ indicator }: { indicator: Indicator }) {
+function Meter({ indicator }: { indicator: Pick<Indicator, "label" | "value"> & { level: string } }) {
   return (
     <div
       role="meter"
@@ -45,6 +46,16 @@ function Meter({ indicator }: { indicator: Indicator }) {
       <div className="h-full rounded-full bg-chart-1" style={{ width: `${Math.round(indicator.value * 100)}%` }} />
     </div>
   )
+}
+
+const FIT = "Fit to your priorities"
+
+/** The one bar the three priority sliders always move. Null for an engine that does not report it. */
+function fit(strategy: Strategy) {
+  const value = (strategy as Partial<Strategy>).priorityFit
+  return typeof value === "number" && Number.isFinite(value)
+    ? { label: FIT, value: Math.min(1, Math.max(0, value)), level: `${Math.round(Math.min(1, Math.max(0, value)) * 100)} of 100` }
+    : null
 }
 
 function Points({ title, icon, items }: { title: string; icon?: ReactNode; items: string[] }) {
@@ -65,6 +76,7 @@ function Points({ title, icon, items }: { title: string; icon?: ReactNode; items
 }
 
 function StrategyCard({ strategy }: { strategy: Strategy }) {
+  const own = fit(strategy)
   return (
     <Card size="sm" className="@container/strategy">
       <CardHeader>
@@ -77,6 +89,15 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
         )}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {own && (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-baseline justify-between gap-2 text-xs font-medium">
+              <span>{own.label}</span>
+              <span className="tabular-nums">{own.level}</span>
+            </div>
+            <Meter indicator={own} />
+          </div>
+        )}
         <ol className="grid grid-cols-2 gap-1 @xs/strategy:grid-cols-4">
           {strategy.rotation.map((id, i) => (
             <li key={i} className="rounded-md border px-2 py-1 leading-tight">
@@ -120,6 +141,8 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
 
 type Props = {
   analysis: FieldAnalysis
+  /** The season the map and the other tabs show. */
+  year: number
   declared: RotationId
   priorities: Priorities
   onPriorities: (p: Priorities) => void
@@ -127,46 +150,20 @@ type Props = {
   onDrier: (v: number) => void
 }
 
-export function StrategiesTab({ analysis, declared, priorities, onPriorities, drier, onDrier }: Props) {
+export function StrategiesTab({ analysis, year, declared, priorities, onPriorities, drier, onDrier }: Props) {
   const strategies = useMemo(() => compareStrategies({ analysis, declared, priorities, drier }), [analysis, declared, priorities, drier])
+  // What the same field and what-if give at medium priorities, to say plainly whether the sliders changed a rotation.
+  const atDefault = useMemo(() => compareStrategies({ analysis, declared, priorities: DEFAULT_PRIORITIES, drier }), [analysis, declared, drier])
+  const moved = PRIORITIES.some(({ key }) => priorities[key] !== DEFAULT_PRIORITIES[key])
+  const changed = strategies.filter((s, i) => s.rotationLabel !== atDefault[i]?.rotationLabel).map((s) => s.title)
+  const fits = strategies.map(fit)
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="grid gap-3 @2xl:grid-cols-[2fr_1fr]">
-        <div className="flex flex-col gap-3 rounded-xl border p-3">
-          <h3 className="text-sm font-medium">What matters to you</h3>
-          <div className="grid gap-x-6 gap-y-3 @xl:grid-cols-3">
-            {PRIORITIES.map(({ key, label }) => (
-              <Dial
-                key={key}
-                id={`priority-${key}`}
-                label={label}
-                word={weight(priorities[key])}
-                value={priorities[key]}
-                onChange={(v) => onPriorities({ ...priorities, [key]: v })}
-              />
-            ))}
-          </div>
-        </div>
-        <div className="flex flex-col justify-between gap-3 rounded-xl border border-dashed bg-muted/50 p-3">
-          <Dial id="what-if-drier" label="Drier and hotter than the record" value={drier} onChange={onDrier} />
-          <p className="flex justify-between gap-2 text-xs text-muted-foreground">
-            <span>A what-if, not a forecast</span>
-            <span>{whatIf(drier)}</span>
-          </p>
-        </div>
-      </section>
+      {/* The finding first: the rotation options are a response to it. */}
+      <p className="rounded-lg bg-muted px-3 py-2 text-sm font-medium text-pretty">{seasonHeadline(analysis.seasons, year)}</p>
 
-      <section className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium">Options to discuss with your agronomist</h3>
-        {/* as many cards across as fit at 17rem each: three in the full-width panel, two when the map needs the room */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(17rem,1fr))] gap-3">
-          {strategies.map((s, i) => (
-            <StrategyCard key={i} strategy={s} />
-          ))}
-        </div>
-      </section>
-
+      {/* Straight after the finding and above the cards, so all three options and their bars are on the first screen. */}
       <section className="flex flex-col gap-2">
         <h3 className="text-sm font-medium">Side by side</h3>
         <Table className="table-fixed">
@@ -176,11 +173,26 @@ export function StrategiesTab({ analysis, declared, priorities, onPriorities, dr
               {strategies.map((s, i) => (
                 <TableHead key={i} className="h-auto py-2 align-bottom leading-tight whitespace-normal">
                   {s.title}
+                  {/* in the narrow panel the crop list would wrap a word per line; the cards below carry it */}
+                  <div className="hidden text-xs font-normal text-muted-foreground @md:block">{s.rotationLabel}</div>
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
+            {fits.every(Boolean) && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell className="pl-0 text-xs font-medium whitespace-normal">{FIT}</TableCell>
+                {fits.map((f, k) => (
+                  <TableCell key={k}>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-medium tabular-nums">{f!.level}</span>
+                      <Meter indicator={f!} />
+                    </div>
+                  </TableCell>
+                ))}
+              </TableRow>
+            )}
             {strategies[0]?.indicators.map((row, i) => (
               <TableRow key={row.key} className="hover:bg-transparent">
                 <TableCell className="pl-0 text-xs whitespace-normal">{row.label}</TableCell>
@@ -200,6 +212,47 @@ export function StrategiesTab({ analysis, declared, priorities, onPriorities, dr
           Bars compare the options with each other. They are relative scores, not yield or price forecasts, and they rest on a draft crop
           catalogue that no local agronomist has reviewed (dated 2026-11-14). The choice stays with you and your agronomist.
         </p>
+      </section>
+
+      <section className="grid gap-3 @2xl:grid-cols-[2fr_1fr]">
+        <div className="flex flex-col gap-3 rounded-xl border p-3">
+          <h3 className="text-sm font-medium">What matters to you</h3>
+          <div className="grid gap-x-6 gap-y-3 @lg:grid-cols-3">
+            {PRIORITIES.map(({ key, label }) => (
+              <Dial
+                key={key}
+                id={`priority-${key}`}
+                label={label}
+                word={weight(priorities[key])}
+                value={priorities[key]}
+                onChange={(v) => onPriorities({ ...priorities, [key]: v })}
+              />
+            ))}
+          </div>
+          {moved && (
+            <p aria-live="polite" className="text-xs text-pretty text-muted-foreground">
+              {changed.length
+                ? `Changed from medium priorities: ${changed.join(", ")}.`
+                : `The same three rotations as with medium priorities${fits.some(Boolean) ? "; the fit bars show how well each now matches" : ""}.`}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-col justify-between gap-3 rounded-xl border border-dashed bg-muted/50 p-3">
+          <Dial id="what-if-drier" label="Drier and hotter than the record" word={whatIf(drier)} value={drier} onChange={onDrier} />
+          <p className="text-xs text-pretty text-muted-foreground">
+            A what-if, not a forecast. Far right: about a quarter less May to August rain, and hotter.
+          </p>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h3 className="text-sm font-medium">Options to discuss with your agronomist</h3>
+        {/* as many cards across as fit at 14rem each: three in the full-width panel from 1440 px, two when the map needs the room */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-3">
+          {strategies.map((s, i) => (
+            <StrategyCard key={i} strategy={s} />
+          ))}
+        </div>
       </section>
     </div>
   )

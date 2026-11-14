@@ -75,4 +75,26 @@ export function centre(geometry: Polygon): [number, number] {
   return [(w + e) / 2, (s + n) / 2]
 }
 
-export const formatHa = (ha: number) => `${ha >= 100 ? Math.round(ha).toLocaleString("en-GB") : ha.toFixed(1)} ha`
+// two decimals under 1 ha, so an outline just under the 0.5 ha minimum does not read "0.5 ha"
+export const formatHa = (ha: number) => `${ha >= 100 ? Math.round(ha).toLocaleString("en-GB") : ha.toFixed(ha < 1 ? 2 : 1)} ha`
+
+// The analysis service accepts 0.5 to 5,000 ha: below that too few 10 m satellite pixels fall inside the outline.
+export const MIN_HA = 0.5
+export const MAX_HA = 5_000
+
+/** Why an outline of this size cannot be saved, or null when it can. */
+export const sizeProblem = (ha: number) =>
+  ha > MAX_HA
+    ? `Over ${MAX_HA.toLocaleString("en-GB")} ha. Outline a single field.`
+    : ha < MIN_HA
+      ? `Under ${MIN_HA} ha, too small for the satellite record to read.`
+      : null
+
+/** Run with `npm run check:data`. */
+export function selfCheck() {
+  // the same limits as the service, so an outline it would refuse is never saved
+  const got = [0.4, 0.5, 414.6, 5000, 5001].map((ha) => sizeProblem(ha)?.split(" ")[0] ?? "ok").join()
+  if (got !== "Under,ok,ok,ok,Over") throw new Error(`size limits read ${got}`)
+  if (formatHa(0.46) !== "0.46 ha" || formatHa(41.46) !== "41.5 ha" || formatHa(1414.6) !== "1,415 ha") throw new Error("formatHa")
+  console.log("fields self-check passed")
+}

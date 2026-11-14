@@ -23,7 +23,7 @@ function TabSkeleton({ tab }: { tab: TabId }) {
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-24 rounded-xl" />
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(17rem,1fr))] gap-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-3">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-96 rounded-xl" />
           ))}
@@ -95,10 +95,23 @@ export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, on
   const soil = state.status === "ready" ? state.analysis.soil : null
 
   return (
-    <div className="@container flex h-full flex-col gap-4 overflow-y-auto p-4">
+    // The tab strip comes first and keeps its width and its place at the right edge, so it does not move
+    // under the pointer when the panel changes width between tabs.
+    <Tabs
+      value={tab}
+      onValueChange={(v) => onTabChange(v as TabId)}
+      className="@container h-full gap-4 overflow-y-auto p-4 [scrollbar-gutter:stable]"
+    >
+      {state.status !== "failed" && (
+        <TabsList className="w-full shrink-0 md:ml-auto md:w-72">
+          <TabsTrigger value="strategies">Strategies</TabsTrigger>
+          <TabsTrigger value="seasons">Seasons</TabsTrigger>
+          <TabsTrigger value="climate">Climate</TabsTrigger>
+        </TabsList>
+      )}
       <header className="flex flex-col gap-3 @2xl:flex-row @2xl:items-start @2xl:justify-between">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="text-lg leading-tight font-semibold tracking-tight text-balance">{field.name}</h2>
+          <h2 className="text-lg leading-tight font-semibold tracking-tight text-balance [overflow-wrap:anywhere]">{field.name}</h2>
           <p className="text-sm text-muted-foreground tabular-nums">
             {field.preset && `${field.preset.region} · `}
             {formatHa(field.areaHa)}
@@ -135,65 +148,64 @@ export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, on
             <EmptyMedia variant="icon">
               <UnplugIcon />
             </EmptyMedia>
-            <EmptyTitle className="text-sm">{field.preset ? "This demo field did not load" : "Live analysis is not available"}</EmptyTitle>
+            <EmptyTitle className="text-sm">
+              {field.preset ? "This demo field did not load" : state.message ? "This field was not analysed" : "Live analysis is not available"}
+            </EmptyTitle>
             <EmptyDescription className="text-xs">
               {field.preset
                 ? "Its data file could not be read. Check the connection and try again."
-                : "Live analysis needs the analysis service, which is not reachable. The demo fields work without it."}
+                : // the service's own words when it answered; the fixed text only when it could not be reached
+                  state.message || "Live analysis needs the analysis service, which is not reachable. The demo fields work without it."}
             </EmptyDescription>
           </EmptyHeader>
-          <EmptyContent>
-            <Button variant="outline" size="sm" onClick={state.retry}>
-              Retry
-            </Button>
-          </EmptyContent>
-        </Empty>
-      ) : (
-        <Tabs value={tab} onValueChange={(v) => onTabChange(v as TabId)} className="min-h-0 flex-1 gap-4">
-          <TabsList className="w-full @2xl:w-88">
-            <TabsTrigger value="strategies">Strategies</TabsTrigger>
-            <TabsTrigger value="seasons">Seasons</TabsTrigger>
-            <TabsTrigger value="climate">Climate</TabsTrigger>
-          </TabsList>
-          {state.status === "loading" ? (
-            <div role="status" aria-label="Loading the analysis" className="flex flex-col gap-3">
-              {!field.preset && (
-                <p className="text-xs text-pretty text-muted-foreground">
-                  Reading every season of satellite passes over this field. A field seen for the first time takes about 30 to 45 seconds.
-                </p>
-              )}
-              <TabSkeleton tab={tab} />
-            </div>
-          ) : (
-            <>
-              <TabsContent value="strategies">
-                <StrategiesTab
-                  analysis={state.analysis}
-                  declared={field.rotation}
-                  priorities={priorities}
-                  onPriorities={setPriorities}
-                  drier={drier}
-                  onDrier={setDrier}
-                />
-              </TabsContent>
-              <TabsContent value="seasons">
-                <SeasonsTab
-                  analysis={state.analysis}
-                  year={year}
-                  onYear={onYear}
-                  compare={field.id in compare ? compare[field.id] : (field.preset?.demoYears[1] ?? null)}
-                  onCompare={(y) => setCompare((prev) => ({ ...prev, [field.id]: y }))}
-                  declared={{ ...field.preset?.declaredUse, ...answers }}
-                  onDeclare={onDeclare}
-                />
-              </TabsContent>
-              <TabsContent value="climate">
-                <ClimateTab analysis={state.analysis} year={year} onYear={onYear} />
-              </TabsContent>
-            </>
+          {state.canRetry && (
+            <EmptyContent>
+              <Button variant="outline" size="sm" onClick={state.retry}>
+                Retry
+              </Button>
+            </EmptyContent>
           )}
-        </Tabs>
+        </Empty>
+      ) : state.status === "loading" ? (
+        <div role="status" aria-label="Loading the analysis" className="flex flex-col gap-3">
+          {!field.preset && (
+            <p className="text-xs text-pretty text-muted-foreground">
+              Reading every season of satellite passes over this field. A field seen for the first time takes about 30 to 45 seconds.
+            </p>
+          )}
+          <TabSkeleton tab={tab} />
+        </div>
+      ) : (
+        <>
+          <TabsContent value="strategies">
+            <StrategiesTab
+              analysis={state.analysis}
+              year={year}
+              declared={field.rotation}
+              priorities={priorities}
+              onPriorities={setPriorities}
+              drier={drier}
+              onDrier={setDrier}
+            />
+          </TabsContent>
+          <TabsContent value="seasons">
+            <SeasonsTab
+              analysis={state.analysis}
+              year={year}
+              onYear={onYear}
+              compare={field.id in compare ? compare[field.id] : (field.preset?.demoYears[1] ?? null)}
+              onCompare={(y) => setCompare((prev) => ({ ...prev, [field.id]: y }))}
+              answers={answers}
+              onDeclare={onDeclare}
+              demo={!!field.preset}
+              refresh={state.refresh}
+            />
+          </TabsContent>
+          <TabsContent value="climate">
+            <ClimateTab analysis={state.analysis} year={year} onYear={onYear} />
+          </TabsContent>
+        </>
       )}
-    </div>
+    </Tabs>
   )
 }

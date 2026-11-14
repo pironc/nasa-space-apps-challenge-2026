@@ -1,12 +1,14 @@
 import { CircleHelpIcon, CircleIcon, EyeIcon, InfoIcon, OctagonAlertIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react"
 import { Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ReferenceArea, XAxis, YAxis } from "recharts"
 
+import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { FieldAnalysis, Severity } from "@/lib/analysis"
-import { landUse, modisSentence, seasonStatus, type Declared } from "@/lib/data"
+import { compareYear, landUse, modisDisagreement, modisSentence, seasonStatus, type AnalysisState, type Declared } from "@/lib/data"
 import { FIRST_YEAR } from "@/lib/layers"
 
 // Status colour sits on the icon only; the word next to it carries the same meaning.
@@ -47,73 +49,108 @@ const modisConfig = { peak: { label: "Peak greenness (NDVI)" } } satisfies Chart
 
 const HATCH = "repeating-linear-gradient(135deg,var(--muted-foreground) 0 1.5px,transparent 1.5px 4px)"
 
+type Refresh = Extract<AnalysisState, { status: "ready" }>["refresh"]
+
+const SOURCE = {
+  inferred: "Read from the shape of the greenness curve alone. A fallow year and a failed crop can look alike, so check it against what you know of the field.",
+  declared: "Given by the person who knows the field, so it is used instead of the reading from the greenness curve.",
+  assumed: "Assumed for this demo, and used instead of the reading from the greenness curve. For a field of your own, this comes from you.",
+}
+
 /** What the record says about one season: land use first, then findings, notes and the weather reading. */
 function Findings({
   analysis,
   year,
-  declared,
+  answer,
   onDeclare,
+  demo,
+  refresh,
 }: {
   analysis: FieldAnalysis
   year: number
-  declared: Declared | null
+  /** What the user said this year was, in this visit. */
+  answer: Declared | null
   onDeclare: (use: Declared | null) => void
+  demo: boolean
+  refresh: Refresh
 }) {
   const season = analysis.seasons.find((s) => s.year === year)
   if (!season) return null
-  const use = landUse(season, declared)
+  const use = landUse(season, answer, demo)
   const levelled = season.verdicts.some((v) => (v.type === "VEG_DEFICIT" || v.type === "BARE_SOIL") && v.severity !== "info")
   const others = analysis.baseline?.years.filter((y) => y !== year).length
+  const question = season.verdicts.find((v) => v.type === "LAND_USE_UNCLEAR")
+  // Once the field is analysed again with the answer, the question itself is gone from the record:
+  // the choice stays on screen so it can still be changed or withdrawn.
+  const asked = question ?? (answer ? { title: `You said ${year} was ${answer === "crop" ? "a crop" : "fallow"}`, detail: "Press the same choice again to withdraw it." } : null)
   return (
     <ul className="flex flex-col gap-2.5">
       <li className="flex gap-2">
         <InfoIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
         <div>
           <div className="font-medium">
-            Land use in {year}: {use.label.toLowerCase()} ({use.source})
+            Land use in {year}: {use.label.toLowerCase()} ({use.source === "assumed" ? "assumed for this demo" : use.source})
           </div>
-          <div className="text-xs text-pretty text-muted-foreground">
-            {use.source === "declared"
-              ? "Given by the person who knows the field, so it is used instead of the reading from the greenness curve."
-              : "Read from the shape of the greenness curve alone. A fallow year and a failed crop can look alike, so check it against what you know of the field."}
-          </div>
+          <div className="text-xs text-pretty text-muted-foreground">{SOURCE[use.source]}</div>
         </div>
       </li>
-      {season.verdicts.map((v, i) =>
-        v.type === "LAND_USE_UNCLEAR" ? (
-          // A question to the person who knows the field, not a finding about it.
-          <li key={i} className="flex flex-col gap-2 rounded-lg border border-dashed p-3">
-            <div className="flex gap-2">
-              <Status severity="question" className="mt-0.5" />
-              <div>
-                <div className="font-medium">{v.title}</div>
-                <div className="text-xs text-pretty text-muted-foreground">{v.detail}</div>
-              </div>
+      {asked && (
+        // A question to the person who knows the field, not a finding about it.
+        <li className="flex flex-col gap-2 rounded-lg border border-dashed p-3">
+          <div className="flex gap-2">
+            <Status severity={answer ? "answered" : "question"} className="mt-0.5" />
+            <div>
+              <div className="font-medium">{asked.title}</div>
+              <div className="text-xs text-pretty text-muted-foreground">{asked.detail}</div>
             </div>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              spacing={1}
-              aria-label={`Land use in ${year}`}
-              value={declared ?? ""}
-              onValueChange={(u) => onDeclare((u || null) as Declared | null)}
-              className="pl-5.5"
-            >
-              <ToggleGroupItem value="crop" className="data-[state=on]:border-primary data-[state=on]:bg-primary/10">
-                It was a crop
-              </ToggleGroupItem>
-              <ToggleGroupItem value="fallow" className="data-[state=on]:border-primary data-[state=on]:bg-primary/10">
-                It was fallow
-              </ToggleGroupItem>
-            </ToggleGroup>
-            {declared && (
-              <p className="pl-5.5 text-xs text-pretty text-muted-foreground">
-                This choice is shown here; the season findings are recalculated when the field is analysed again.
+          </div>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            spacing={1}
+            aria-label={`Land use in ${year}`}
+            value={answer ?? ""}
+            onValueChange={(u) => onDeclare((u || null) as Declared | null)}
+            className="pl-5.5"
+          >
+            <ToggleGroupItem value="crop" className="data-[state=on]:border-primary data-[state=on]:bg-primary/10">
+              It was a crop
+            </ToggleGroupItem>
+            <ToggleGroupItem value="fallow" className="data-[state=on]:border-primary data-[state=on]:bg-primary/10">
+              It was fallow
+            </ToggleGroupItem>
+          </ToggleGroup>
+          {refresh === "running" ? (
+            <p role="status" className="flex items-center gap-2 pl-5.5 text-xs text-pretty text-muted-foreground">
+              <Spinner aria-hidden className="size-3.5 shrink-0" />
+              Analysing the field again with your answer. This can take up to a minute; the findings below are the earlier ones until then.
+            </p>
+          ) : refresh ? (
+            <div className="flex flex-col items-start gap-2 pl-5.5 text-xs text-pretty">
+              <p>
+                The field could not be analysed again, so the findings below do not use your answer yet.{" "}
+                {refresh.message || "The analysis service is not reachable."}
               </p>
-            )}
-          </li>
-        ) : v.type === "NOTE" ? (
+              {refresh.canRetry && (
+                <Button variant="outline" size="sm" onClick={refresh.retry}>
+                  Retry
+                </Button>
+              )}
+            </div>
+          ) : (
+            answer && (
+              <p className="pl-5.5 text-xs text-pretty text-muted-foreground">
+                {demo
+                  ? "Noted for this visit only. A demo field is a fixed file, so its findings and rotation cards do not change."
+                  : "The season findings and the rotation cards now use your answer. It is kept for this visit only."}
+              </p>
+            )
+          )}
+        </li>
+      )}
+      {season.verdicts.map((v, i) =>
+        v.type === "LAND_USE_UNCLEAR" ? null : v.type === "NOTE" ? (
           <li key={i} className="flex gap-2 text-xs text-pretty text-muted-foreground">
             <InfoIcon className="mt-px size-3.5 shrink-0" />
             <div>
@@ -164,15 +201,25 @@ type Props = {
   /** The second season drawn on the chart. Held by the panel so it survives a change of tab. */
   compare: number | null
   onCompare: (year: number | null) => void
-  /** Land use the owner gave, by year: shipped with a demo field or answered in this session. */
-  declared: Record<string, Declared>
+  /** Land use the user gave in this visit, by year. */
+  answers: Record<string, Declared>
   onDeclare: (year: number, use: Declared | null) => void
+  /** A demo field: the land use shipped with it is an assumption, not a farmer's word. */
+  demo: boolean
+  /** Set while, or after, the field is analysed again with new answers. */
+  refresh: Refresh
 }
 
-export function SeasonsTab({ analysis, year, onYear, compare, onCompare, declared, onDeclare }: Props) {
+export function SeasonsTab({ analysis, year, onYear, compare, onCompare, answers, onDeclare, demo, refresh }: Props) {
   const { seasons, baseline, modis, dekads } = analysis
   const season = seasons.find((s) => s.year === year)
-  const other = compare === year ? undefined : seasons.find((s) => s.year === compare)
+  const shown = compareYear(
+    compare,
+    year,
+    seasons.map((s) => s.year)
+  )
+  const other = seasons.find((s) => s.year === shown)
+  const disagreement = modisDisagreement(analysis, year)
   const span = seasons.length ? `${seasons[0].year} to ${seasons.at(-1)!.year}` : ""
 
   const rows = dekads.map((dekad, i) => ({
@@ -195,8 +242,8 @@ export function SeasonsTab({ analysis, year, onYear, compare, onCompare, declare
         className="grid w-full grid-cols-3 @xl:grid-cols-5 @3xl:grid-cols-9"
       >
         {seasons.map((s) => {
-          const status = seasonStatus(s, declared[s.year]) ?? "none"
-          const use = landUse(s, declared[s.year])
+          const status = seasonStatus(s, answers[s.year]) ?? "none"
+          const use = landUse(s, answers[s.year], demo)
           return (
             <ToggleGroupItem
               key={s.year}
@@ -226,7 +273,7 @@ export function SeasonsTab({ analysis, year, onYear, compare, onCompare, declare
             <Label htmlFor="compare-year" className="text-xs font-normal text-muted-foreground">
               Compare with
             </Label>
-            <Select value={String(compare ?? "none")} onValueChange={(v) => onCompare(v === "none" ? null : +v)}>
+            <Select value={String(shown ?? "none")} onValueChange={(v) => onCompare(v === "none" ? null : +v)}>
               <SelectTrigger id="compare-year" size="sm" className="w-24 tabular-nums">
                 <SelectValue />
               </SelectTrigger>
@@ -265,7 +312,7 @@ export function SeasonsTab({ analysis, year, onYear, compare, onCompare, declare
                         <>
                           <span aria-hidden className="w-1 shrink-0 rounded-[2px]" style={{ background: item.color }} />
                           <span className="flex-1 text-muted-foreground">
-                            {name === "sel" ? year : name === "cmp" ? compare : ndviConfig[name as "median"].label}
+                            {name === "sel" ? year : name === "cmp" ? shown : ndviConfig[name as "median"].label}
                           </span>
                           <span className="font-medium text-foreground tabular-nums">{Number(value).toFixed(2)}</span>
                         </>
@@ -275,13 +322,16 @@ export function SeasonsTab({ analysis, year, onYear, compare, onCompare, declare
                 />
                 <Area dataKey="band" stroke="none" fill="var(--muted-foreground)" fillOpacity={0.14} isAnimationActive={false} tooltipType="none" />
                 <Line dataKey="median" stroke="var(--color-median)" strokeWidth={1.5} dot={false} activeDot={false} isAnimationActive={false} />
-                {other && <Line dataKey="cmp" stroke="var(--color-cmp)" strokeWidth={2} dot={{ r: 2 }} isAnimationActive={false} />}
+                {/* dashed as well as coloured: the two seasons stay apart without colour */}
+                {other && (
+                  <Line dataKey="cmp" stroke="var(--color-cmp)" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 2, strokeDasharray: "0" }} isAnimationActive={false} />
+                )}
                 <Line dataKey="sel" stroke="var(--color-sel)" strokeWidth={2} dot={{ r: 2 }} isAnimationActive={false} />
               </ComposedChart>
             </ChartContainer>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
               <Key swatch="h-0.5 w-4 rounded-full bg-chart-1">{year}</Key>
-              {other && <Key swatch="h-0.5 w-4 rounded-full bg-chart-2">{other.year}</Key>}
+              {other && <Key swatch="h-0 w-5 border-t-2 border-dashed border-chart-2">{other.year} (dashed)</Key>}
               {baseline && (
                 <>
                   <Key swatch="h-px w-4 bg-muted-foreground">This field's normal</Key>
@@ -293,7 +343,14 @@ export function SeasonsTab({ analysis, year, onYear, compare, onCompare, declare
               <p className="text-xs text-muted-foreground">There are not enough cropped seasons yet to draw this field's own normal.</p>
             )}
 
-            <Findings analysis={analysis} year={year} declared={declared[year] ?? null} onDeclare={(use) => onDeclare(year, use)} />
+            <Findings
+              analysis={analysis}
+              year={year}
+              answer={answers[year] ?? null}
+              onDeclare={(use) => onDeclare(year, use)}
+              demo={demo}
+              refresh={refresh}
+            />
           </>
         ) : (
           <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
@@ -305,11 +362,15 @@ export function SeasonsTab({ analysis, year, onYear, compare, onCompare, declare
       <section className="flex flex-col gap-2">
         <div>
           <h3 className="text-sm font-medium">NASA MODIS record since 2000</h3>
-          <p className="text-xs text-muted-foreground">Peak summer greenness (NDVI) each year, from 250 m pixels that include neighbouring land</p>
+          <p className="text-xs text-pretty text-muted-foreground">
+            Peak summer greenness (NDVI) each year, from 250 m pixels that include neighbouring land. Summers that read as bare, which may
+            be failed crops, are not ranked. Click a bar from {FIRST_YEAR} on to open that season.
+          </p>
         </div>
         {modis ? (
           <>
             <p className="text-pretty">{modisSentence(modis.years, year)}</p>
+            {disagreement && <p className="text-pretty">{disagreement}</p>}
             <ChartContainer config={modisConfig} className="aspect-auto h-32 w-full">
               <BarChart
                 accessibilityLayer
@@ -345,10 +406,11 @@ export function SeasonsTab({ analysis, year, onYear, compare, onCompare, declare
                     />
                   }
                 />
-                <Bar dataKey="peak" radius={[2, 2, 0, 0]} isAnimationActive={false} className="cursor-pointer">
+                <Bar dataKey="peak" radius={[2, 2, 0, 0]} isAnimationActive={false}>
                   {modis.years.map((m) => (
                     <Cell
                       key={m.year}
+                      className={m.year >= FIRST_YEAR ? "cursor-pointer" : undefined}
                       fill={m.use === "fallow" ? "url(#fallow-hatch)" : m.year === year ? "var(--chart-1)" : "var(--muted-foreground)"}
                       fillOpacity={m.use === "fallow" || m.year === year ? 1 : 0.45}
                     />

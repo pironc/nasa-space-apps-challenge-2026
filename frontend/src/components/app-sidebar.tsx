@@ -20,7 +20,7 @@ import {
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { formatHa, type SavedField } from "@/lib/fields"
-import { LAYERS, type LayerId, type LayerState } from "@/lib/layers"
+import { PANEL_ORDER, type LayerId, type LayerState } from "@/lib/layers"
 
 type Props = {
   year: number
@@ -34,9 +34,6 @@ type Props = {
   onSelect: (id: string) => void
   onDelete: (field: SavedField) => void
 }
-
-// Top of the stack first, the way the layers sit on the map.
-const PANEL_ORDER = [...LAYERS].reverse()
 
 export function AppSidebar({ year, layers, onLayerChange, presets, fields, obtained, selectedId, onSelect, onDelete }: Props) {
   const { setOpenMobile } = useSidebar()
@@ -76,6 +73,32 @@ export function AppSidebar({ year, layers, onLayerChange, presets, fields, obtai
         <p className="text-xs text-muted-foreground">Season findings and rotation options, from NASA Earth data</p>
       </SidebarHeader>
       <SidebarContent>
+        {presets.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Demo fields</SidebarGroupLabel>
+            <SidebarGroupContent>{rows(presets, false)}</SidebarGroupContent>
+          </SidebarGroup>
+        )}
+        <SidebarGroup>
+          <SidebarGroupLabel>My fields</SidebarGroupLabel>
+          <SidebarGroupContent>
+            {fields.length === 0 ? (
+              <Empty className="gap-3 border border-dashed p-4 md:p-4">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <MapPinnedIcon />
+                  </EmptyMedia>
+                  <EmptyTitle className="text-sm">No fields yet</EmptyTitle>
+                  <EmptyDescription className="text-xs">
+                    Use <span className="font-medium text-foreground">Draw field</span> on the map to outline one. It is saved in this browser.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            ) : (
+              rows(fields, true)
+            )}
+          </SidebarGroupContent>
+        </SidebarGroup>
         <SidebarGroup>
           <SidebarGroupLabel>Map layers</SidebarGroupLabel>
           <SidebarGroupContent className="flex flex-col gap-1 px-2">
@@ -123,32 +146,6 @@ export function AppSidebar({ year, layers, onLayerChange, presets, fields, obtai
                 </div>
               )
             })}
-          </SidebarGroupContent>
-        </SidebarGroup>
-        {presets.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Demo fields</SidebarGroupLabel>
-            <SidebarGroupContent>{rows(presets, false)}</SidebarGroupContent>
-          </SidebarGroup>
-        )}
-        <SidebarGroup>
-          <SidebarGroupLabel>My fields</SidebarGroupLabel>
-          <SidebarGroupContent>
-            {fields.length === 0 ? (
-              <Empty className="gap-3 border border-dashed p-4 md:p-4">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <MapPinnedIcon />
-                  </EmptyMedia>
-                  <EmptyTitle className="text-sm">No fields yet</EmptyTitle>
-                  <EmptyDescription className="text-xs">
-                    Use <span className="font-medium text-foreground">Draw field</span> on the map to outline one. It is saved in this browser.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              rows(fields, true)
-            )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

@@ -5,8 +5,6 @@ import { TerraDraw, TerraDrawPolygonMode, TerraDrawSelectMode, ValidateNotSelfIn
 import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter"
 import { useMap } from "@/components/ui/map"
 
-export const MAX_HA = 5_000
-
 const hectares = (f: Feature<Polygon>) => area(f) / 10_000
 
 type Shape = { polygon: Polygon; ha: number }

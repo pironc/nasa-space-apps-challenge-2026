@@ -28,8 +28,23 @@ export type MapLayer = {
 
 const GIBS_CREDIT = "Imagery: NASA GIBS / ESDIS"
 
-// Array order is draw order, bottom to top. The panel lists it top-down.
+// Array order is draw order, bottom to top. Vegetation is on by default and nearly opaque, so it sits
+// at the bottom: whatever else is switched on shows above it.
 export const LAYERS: MapLayer[] = [
+  {
+    id: "ndvi",
+    label: "Vegetation (NDVI)",
+    source: "NASA MODIS Terra, 16-day",
+    hint: "MODIS greenness (250 m) reads higher than the field chart (Sentinel-2).",
+    tiles: (d) => gibs("MODIS_Terra_L3_NDVI_16Day", d, 9, "png"),
+    maxzoom: 9,
+    legend: `${LEGENDS}/MODIS_L3_NDVI_H.svg`,
+    scale: "Brown is bare or dry ground (below 0.3), darker green is denser green cover (up to 1).",
+    attribution: GIBS_CREDIT,
+    since: 2001,
+    on: true,
+    opacity: 0.85,
+  },
   {
     id: "satellite",
     label: "Satellite mosaic",
@@ -85,21 +100,10 @@ export const LAYERS: MapLayer[] = [
     on: false,
     opacity: 0.7,
   },
-  {
-    id: "ndvi",
-    label: "Vegetation (NDVI)",
-    source: "NASA MODIS Terra, 16-day",
-    hint: "MODIS greenness (250 m) reads higher than the field chart (Sentinel-2).",
-    tiles: (d) => gibs("MODIS_Terra_L3_NDVI_16Day", d, 9, "png"),
-    maxzoom: 9,
-    legend: `${LEGENDS}/MODIS_L3_NDVI_H.svg`,
-    scale: "Brown is bare or dry ground (below 0.3), darker green is denser green cover (up to 1).",
-    attribution: GIBS_CREDIT,
-    since: 2001,
-    on: true,
-    opacity: 0.85,
-  },
 ]
+
+/** The sidebar's order: vegetation, the layer that is on by default, then the rest from the top of the stack down. */
+export const PANEL_ORDER = [LAYERS[0], ...LAYERS.slice(1).reverse()]
 
 export type LayerState = Record<LayerId, { on: boolean; opacity: number }>
 
@@ -140,3 +144,14 @@ export const DEFAULT_DATE = "2024-07-11"
 
 export const formatDate = (iso: string) =>
   new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+
+/** Run with `npm run check:data`. */
+export function selfCheck() {
+  const ids = LAYERS.map((l) => l.id).join()
+  // vegetation draws below every other overlay, so switching one on is always visible
+  if (ids !== "ndvi,satellite,truecolor,soil,rain") throw new Error(`draw order is ${ids}`)
+  const panel = PANEL_ORDER.map((l) => l.id).join()
+  if (panel !== "ndvi,rain,soil,truecolor,satellite") throw new Error(`panel order is ${panel}`)
+  if (LAYERS.filter((l) => l.on).map((l) => l.id).join() !== "ndvi") throw new Error("only vegetation is on by default")
+  console.log("layers self-check passed")
+}

@@ -1,4 +1,4 @@
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, ReferenceLine, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ReferenceArea, ReferenceLine, XAxis, YAxis } from "recharts"
 
 import { Key } from "@/components/seasons-tab"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { Cause, FieldAnalysis } from "@/lib/analysis"
+import { recordExtreme } from "@/lib/data"
 import { FIRST_YEAR } from "@/lib/layers"
 
 // Names of what the regional record shows. Whether it explains the field is said under "Weather and this field".
@@ -58,6 +59,8 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
   const sowingDependent = season?.causes.filter((c) => c.robust !== true).flatMap((c) => c.evidence) ?? []
   const drought = new Set(climate.droughtYears)
   const rows = climate.seasons.map((s) => ({ ...s, marked: drought.has(s.year) }))
+  const first = climate.seasons[0]?.year
+  const extreme = season ? recordExtreme(season, first) : null
   const rainTop = Math.ceil(Math.max(normals.rainMayAug, ...rows.map((r) => r.rainMayAug)) / 100) * 100
 
   return (
@@ -87,7 +90,7 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
           <Table className="table-fixed">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="h-8 w-[46%] pl-0">Measure</TableHead>
+                <TableHead className="h-8 w-[40%] pl-0">Measure</TableHead>
                 <TableHead className="h-8 text-right tabular-nums">{year}</TableHead>
                 <TableHead className="h-8 w-[22%] pr-0 text-right">Normal</TableHead>
               </TableRow>
@@ -133,7 +136,7 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
                   <Sub>{season.htcClass}</Sub>
                   {season.htcRank != null && (
                     <Sub>
-                      rank {season.htcRank} of {season.htcRankOf} <span className="whitespace-nowrap">(1 = driest)</span>
+                      rank {season.htcRank} of {season.htcRankOf}, driest first, <span className="whitespace-nowrap">since {first}</span>
                     </Sub>
                   )}
                 </TableCell>
@@ -153,11 +156,11 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
                 <TableCell />
               </TableRow>
               <TableRow>
-                <TableCell>First autumn frost</TableCell>
                 <TableCell>
-                  {season.firstAutumnFrost ? dayMonth(season.firstAutumnFrost) : "None in the regional record"}
-                  <Sub>Frost pockets are not visible</Sub>
+                  First autumn frost
+                  <Sub>Grid air temperature at 2 m. Ground frost and frost pockets come earlier.</Sub>
                 </TableCell>
+                <TableCell>{season.firstAutumnFrost ? dayMonth(season.firstAutumnFrost) : "None in the regional record"}</TableCell>
                 <TableCell />
               </TableRow>
             </TableBody>
@@ -174,8 +177,8 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
             <div>
               <div className="font-medium">{droughtLabel}</div>
               <Sub>
-                Its hydrothermal coefficient is in the lowest {season.drought === "severe" ? "tenth" : "fifth"} of this area's seasons. Dry
-                seasons are normal here, so only these are called a drought.
+                Its hydrothermal coefficient is at or below the {season.drought === "severe" ? "10th" : "20th"} percentile of this area's
+                1991 to 2020 seasons. Dry seasons are normal here, so only these are called a drought.
               </Sub>
             </div>
           )}
@@ -196,8 +199,9 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
               <Evidence lines={sowingDependent} />
             </div>
           )}
-          {!droughtLabel && season.causes.length === 0 && (
-            <p className="text-pretty text-muted-foreground">Nothing stood out in the regional weather record of {year}.</p>
+          {extreme && <p className="font-medium text-pretty">{extreme}</p>}
+          {!droughtLabel && !extreme && season.causes.length === 0 && (
+            <p className="text-pretty text-muted-foreground">No dry-spell, heat, frost or harvest-rain flag in {year}.</p>
           )}
           {veg?.explanation && (
             <div className="flex flex-col gap-1 border-t pt-2.5">
@@ -211,7 +215,9 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
       <section className="flex flex-col gap-2">
         <div>
           <h3 className="text-sm font-medium">May to August rain, every season since {climate.seasons[0]?.year}</h3>
-          <p className="text-xs text-muted-foreground">Millimetres, with the 1991 to 2020 normal as the line</p>
+          <p className="text-xs text-pretty text-muted-foreground">
+            Millimetres, with the 1991 to 2020 normal as the line. Click a bar from {FIRST_YEAR} on to open that season.
+          </p>
         </div>
         <ChartContainer config={rainConfig} className="aspect-auto h-44 w-full">
           <BarChart
@@ -231,6 +237,8 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
               axisLine={false}
               className="tabular-nums"
             />
+            {/* a band behind the selected season, so it is marked by position as well as colour */}
+            <ReferenceArea x1={year} x2={year} fill="var(--chart-1)" fillOpacity={0.12} stroke="none" />
             <ChartTooltip
               cursor={false}
               content={
@@ -249,9 +257,14 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
                 />
               }
             />
-            <Bar dataKey="rainMayAug" radius={[2, 2, 0, 0]} isAnimationActive={false} className="cursor-pointer">
+            <Bar dataKey="rainMayAug" radius={[2, 2, 0, 0]} isAnimationActive={false}>
               {rows.map((r) => (
-                <Cell key={r.year} fill={r.year === year ? "var(--chart-1)" : "var(--muted-foreground)"} fillOpacity={r.year === year ? 1 : 0.45} />
+                <Cell
+                  key={r.year}
+                  className={r.year >= FIRST_YEAR ? "cursor-pointer" : undefined}
+                  fill={r.year === year ? "var(--chart-1)" : "var(--muted-foreground)"}
+                  fillOpacity={r.year === year ? 1 : 0.45}
+                />
               ))}
               <LabelList dataKey="marked" content={DroughtMark} />
             </Bar>
@@ -259,7 +272,7 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
           </BarChart>
         </ChartContainer>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
-          <Key swatch="size-2.5 rounded-[2px] bg-chart-1">{year}</Key>
+          <Key swatch="h-3.5 w-2.5 border-x-2 border-chart-1/15 bg-chart-1">{year}, with a band behind it</Key>
           <Key swatch="h-px w-4 bg-foreground/60">Normal, {mm(normals.rainMayAug)}</Key>
           <span className="flex items-center gap-1.5">
             <svg aria-hidden viewBox="0 0 7 6" className="h-1.5 w-[7px] shrink-0 fill-foreground">
