@@ -1,0 +1,41 @@
+[
+ {
+  "id": "kostanay-fyodorov",
+  "name": "Fyodorov north (sample)",
+  "region": "Kostanay region",
+  "note": "SYNTHETIC SAMPLE DATA for building the UI. Replaced by real satellite data.",
+  "rotation": "wwww",
+  "areaHa": 412.0,
+  "geometry": {
+   "type": "Polygon",
+   "coordinates": [
+    [
+     [
+      62.7296,
+      53.788
+     ],
+     [
+      62.7704,
+      53.788
+     ],
+     [
+      62.7704,
+      53.812
+     ],
+     [
+      62.7296,
+      53.812
+     ],
+     [
+      62.7296,
+      53.788
+     ]
+    ]
+   ]
+  },
+  "demoYears": [
+   2021,
+   2024
+  ]
+ }
+]
