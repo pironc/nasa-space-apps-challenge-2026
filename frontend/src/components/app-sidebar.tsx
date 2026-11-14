@@ -1,5 +1,6 @@
 import { MapPinnedIcon, Trash2Icon } from "lucide-react"
 
+import { AboutDialog } from "@/components/about-dialog"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Label } from "@/components/ui/label"
 import {
@@ -25,7 +26,10 @@ type Props = {
   year: number
   layers: LayerState
   onLayerChange: (id: LayerId, patch: Partial<LayerState[LayerId]>) => void
+  presets: SavedField[]
   fields: SavedField[]
+  /** ISO date the open field's analysis was built. */
+  obtained?: string
   selectedId: string | null
   onSelect: (id: string) => void
   onDelete: (field: SavedField) => void
@@ -34,8 +38,37 @@ type Props = {
 // Top of the stack first, the way the layers sit on the map.
 const PANEL_ORDER = [...LAYERS].reverse()
 
-export function AppSidebar({ year, layers, onLayerChange, fields, selectedId, onSelect, onDelete }: Props) {
+export function AppSidebar({ year, layers, onLayerChange, presets, fields, obtained, selectedId, onSelect, onDelete }: Props) {
   const { setOpenMobile } = useSidebar()
+  const rows = (list: SavedField[], deletable: boolean) => (
+    <SidebarMenu>
+      {list.map((f) => (
+        <SidebarMenuItem key={f.id}>
+          <SidebarMenuButton
+            isActive={f.id === selectedId}
+            onClick={() => {
+              onSelect(f.id)
+              setOpenMobile(false) // on a phone the sidebar is a sheet covering the map
+            }}
+            className="h-auto py-1.5"
+          >
+            <div className="flex min-w-0 flex-col leading-tight">
+              <span className="truncate font-medium">{f.name}</span>
+              <span className="truncate text-xs text-muted-foreground tabular-nums">
+                {f.preset && `${f.preset.region} · `}
+                {formatHa(f.areaHa)}
+              </span>
+            </div>
+          </SidebarMenuButton>
+          {deletable && (
+            <SidebarMenuAction showOnHover aria-label={`Delete ${f.name}`} onClick={() => onDelete(f)}>
+              <Trash2Icon />
+            </SidebarMenuAction>
+          )}
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
+  )
   return (
     <Sidebar>
       <SidebarHeader className="px-4 pt-4 pb-2">
@@ -92,6 +125,12 @@ export function AppSidebar({ year, layers, onLayerChange, fields, selectedId, on
             })}
           </SidebarGroupContent>
         </SidebarGroup>
+        {presets.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Demo fields</SidebarGroupLabel>
+            <SidebarGroupContent>{rows(presets, false)}</SidebarGroupContent>
+          </SidebarGroup>
+        )}
         <SidebarGroup>
           <SidebarGroupLabel>My fields</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -108,30 +147,13 @@ export function AppSidebar({ year, layers, onLayerChange, fields, selectedId, on
                 </EmptyHeader>
               </Empty>
             ) : (
-              <SidebarMenu>
-                {fields.map((f) => (
-                  <SidebarMenuItem key={f.id}>
-                    <SidebarMenuButton isActive={f.id === selectedId} onClick={() => {
-                        onSelect(f.id)
-                        setOpenMobile(false) // on a phone the sidebar is a sheet covering the map
-                      }}
-                      className="h-auto py-1.5">
-                      <div className="flex min-w-0 flex-col leading-tight">
-                        <span className="truncate font-medium">{f.name}</span>
-                        <span className="text-xs text-muted-foreground tabular-nums">{formatHa(f.areaHa)}</span>
-                      </div>
-                    </SidebarMenuButton>
-                    <SidebarMenuAction showOnHover aria-label={`Delete ${f.name}`} onClick={() => onDelete(f)}>
-                      <Trash2Icon />
-                    </SidebarMenuAction>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
+              rows(fields, true)
             )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="px-4 pb-4">
+      <SidebarFooter className="gap-3 px-4 pb-4">
+        <AboutDialog year={year} obtained={obtained} />
         <p className="text-xs text-muted-foreground">Decision support only. Check any change with a local agronomist.</p>
       </SidebarFooter>
     </Sidebar>

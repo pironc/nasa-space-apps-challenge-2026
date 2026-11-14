@@ -16,6 +16,10 @@
     --color-sidebar-primary: var(--sidebar-primary);
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar: var(--sidebar);
+    --color-status-good: var(--status-good);
+    --color-status-watch: var(--status-watch);
+    --color-status-warning: var(--status-warning);
+    --color-status-severe: var(--status-severe);
     --color-chart-5: var(--chart-5);
     --color-chart-4: var(--chart-4);
     --color-chart-3: var(--chart-3);
@@ -67,11 +71,17 @@
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: #256abf;
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
+    /* Charts: selected year, comparison year, third series. Checked with the dataviz palette validator. */
+    --chart-1: #2a78d6;
+    --chart-2: #eb6834;
+    --chart-3: #1baf7a;
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
+    /* Status only, always next to an icon and a label. Never a chart series or a map fill. */
+    --status-good: #0ca30c;
+    --status-watch: #fab219;
+    --status-warning: #ec835a;
+    --status-severe: #d03b3b;
     --radius: 0.625rem;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
@@ -102,9 +112,9 @@
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-3: #199e70;
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
     --sidebar: oklch(0.205 0 0);

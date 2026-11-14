@@ -1,6 +1,8 @@
 import type { Polygon } from "geojson"
 import { useCallback, useState } from "react"
 
+import type { Preset } from "@/lib/analysis"
+
 export const ROTATIONS = {
   fwwb: "Fallow, wheat, wheat, barley",
   wwww: "Continuous wheat",
@@ -16,7 +18,11 @@ export type SavedField = {
   areaHa: number
   geometry: Polygon
   createdAt: string
+  /** Set on demo fields: shipped with the app, never stored in the browser, not deletable. */
+  preset?: Preset
 }
+
+export const presetToField = (p: Preset): SavedField => ({ ...p, createdAt: "", preset: p })
 
 const KEY = "fieldshift.fields.v1"
 
@@ -48,6 +54,7 @@ export function useSavedFields() {
   return {
     fields,
     add: (f: SavedField) => update((prev) => [...prev, f]),
+    patch: (id: string, change: Partial<SavedField>) => update((prev) => prev.map((f) => (f.id === id ? { ...f, ...change } : f))),
     remove: (id: string) => update((prev) => prev.filter((f) => f.id !== id)),
     restore: (f: SavedField) => update((prev) => (prev.some((p) => p.id === f.id) ? prev : [...prev, f])),
   }

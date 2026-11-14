@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { AnalysisPanel, TABS, type TabId } from "@/components/analysis-panel"
@@ -9,28 +9,47 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/compone
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { useSavedFields, type SavedField } from "@/lib/fields"
+import { loadPresets, midJuly, useAnalysis } from "@/lib/data"
+import { presetToField, useSavedFields, type RotationId, type SavedField } from "@/lib/fields"
 import { DEFAULT_DATE, defaultLayerState, snapDate, type LayerId, type LayerState } from "@/lib/layers"
 
 const query = new URLSearchParams(location.search)
-const initialTab = TABS.find((t) => t === query.get("tab")) ?? "overview"
+const initialTab = TABS.find((t) => t === query.get("tab")) ?? "strategies"
 
 export function App() {
   const isMobile = useIsMobile()
-  const { fields, add, remove, restore } = useSavedFields()
+  const { fields: saved, add, patch, remove, restore } = useSavedFields()
+  const [presets, setPresets] = useState<SavedField[]>([])
   const [date, setDate] = useState(() => snapDate(query.get("date") ?? DEFAULT_DATE))
   const [selectedId, setSelectedId] = useState<string | null>(query.get("field"))
   const [tab, setTab] = useState<TabId>(initialTab)
   const [layers, setLayers] = useState<LayerState>(defaultLayerState)
+  const fields = useMemo(() => [...presets, ...saved], [presets, saved])
   const selected = fields.find((f) => f.id === selectedId)
+  const analysis = useAnalysis(selected)
+  const year = +date.slice(0, 4)
+
+  useEffect(() => {
+    loadPresets().then(
+      (list) => {
+        setPresets(list.map(presetToField))
+        // A first visit lands on a finished analysis: the first demo field in its stressed year.
+        if (list[0] && !query.has("field")) {
+          setSelectedId(list[0].id)
+          if (!query.has("date")) setDate(snapDate(midJuly(list[0].demoYears[0])))
+        }
+      },
+      () => toast("The demo fields could not be loaded.")
+    )
+  }, [])
 
   // Selection, date and tab live in the URL so a view can be shared or reloaded.
   useEffect(() => {
     const q = new URLSearchParams({ date })
-    if (selected) q.set("field", selected.id)
-    if (tab !== "overview") q.set("tab", tab)
+    if (selectedId) q.set("field", selectedId)
+    if (tab !== "strategies") q.set("tab", tab)
     history.replaceState(null, "", `?${q}`)
-  }, [date, selected, tab])
+  }, [date, selectedId, tab])
 
   const onLayerChange = useCallback(
     (id: LayerId, patch: Partial<LayerState[LayerId]>) => setLayers((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } })),
@@ -43,22 +62,44 @@ export function App() {
     toast(`Deleted ${field.name}`, { action: { label: "Undo", onClick: () => restore(field) } })
   }
 
-  const panel = <AnalysisPanel field={selected} tab={tab} onTabChange={setTab} />
+  // A saved field remembers its rotation; a demo field takes the change for this visit only.
+  const onRotation = (rotation: RotationId) => {
+    if (!selected) return
+    if (selected.preset) setPresets((prev) => prev.map((p) => (p.id === selected.id ? { ...p, rotation } : p)))
+    else patch(selected.id, { rotation })
+  }
+
+  const panel = (
+    <AnalysisPanel
+      field={selected}
+      state={analysis}
+      tab={tab}
+      onTabChange={setTab}
+      year={year}
+      onYear={(y) => setDate(snapDate(midJuly(y)))}
+      onRotation={onRotation}
+    />
+  )
+  // Three strategy cards side by side need room; the other tabs read better narrow.
+  // Below 1280 px the cards would not fit three across, so the panel stays narrow and they stack.
+  const wide = !!selected && tab === "strategies" && analysis.status !== "failed"
 
   return (
     <SidebarProvider>
       <AppSidebar
-        year={+date.slice(0, 4)}
+        year={year}
         layers={layers}
         onLayerChange={onLayerChange}
-        fields={fields}
+        presets={presets}
+        fields={saved}
+        obtained={analysis.status === "ready" ? analysis.analysis.generatedAt : undefined}
         selectedId={selectedId}
         onSelect={setSelectedId}
         onDelete={onDelete}
       />
       <SidebarInset className="h-dvh flex-row overflow-hidden">
         {/* isolate: keeps the map's own stacking below dialogs, sheets and toasts */}
-        <div className="relative isolate min-w-0 flex-1">
+        <div className="@container relative isolate min-w-0 flex-1">
           <FieldMap
             date={date}
             layers={layers}
@@ -71,16 +112,19 @@ export function App() {
               setSelectedId(field.id)
             }}
           />
-          <div className="absolute inset-x-3 bottom-10 z-10 mx-auto max-w-md">
+          {/* on a narrow map the attribution wraps onto two lines: leave it room */}
+          <div className="absolute inset-x-3 bottom-16 z-10 mx-auto max-w-md @2xl:bottom-10">
             <TimeSlider date={date} onChange={setDate} />
           </div>
         </div>
-        {!isMobile && <aside className="w-88 shrink-0 border-l bg-background">{panel}</aside>}
+        {!isMobile && <aside className={`shrink-0 border-l bg-background ${wide ? "w-88 xl:w-[min(60vw,56rem)]" : "w-88"}`}>{panel}</aside>}
       </SidebarInset>
-      {isMobile && (
-        <Drawer modal={false} open={!!selected} onOpenChange={(open) => !open && setSelectedId(null)}>
+      {/* Mounted only while a field is selected: vaul's non-modal mode frees the page behind the
+          drawer once, on mount, so a drawer that opens later would leave the map untouchable. */}
+      {isMobile && selected && (
+        <Drawer modal={false} open onOpenChange={(open) => !open && setSelectedId(null)}>
           <DrawerContent className="max-h-[80dvh]">
-            <DrawerTitle className="sr-only">{selected?.name}</DrawerTitle>
+            <DrawerTitle className="sr-only">{selected.name}</DrawerTitle>
             <DrawerDescription className="sr-only">Field analysis</DrawerDescription>
             {panel}
           </DrawerContent>

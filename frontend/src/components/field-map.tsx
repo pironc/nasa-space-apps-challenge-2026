@@ -1,4 +1,4 @@
-import type { Feature, FeatureCollection, Polygon } from "geojson"
+import type { Feature, FeatureCollection, Point, Polygon } from "geojson"
 import { PencilLineIcon } from "lucide-react"
 import type { FillLayerSpecification, LineLayerSpecification } from "maplibre-gl"
 import { useEffect, useMemo, useState } from "react"
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Map, MapControls, MapGeoJSON, useMap } from "@/components/ui/map"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { bounds, formatHa, ROTATIONS, type RotationId, type SavedField } from "@/lib/fields"
+import { bounds, centre, formatHa, ROTATIONS, type RotationId, type SavedField } from "@/lib/fields"
 import { BASEMAP, LAYERS, type LayerState } from "@/lib/layers"
 import { RasterLayer } from "@/map/RasterLayer"
 import { MAX_HA, useFieldDraw } from "@/map/useFieldDraw"
@@ -25,7 +25,12 @@ function FieldLabels({ data }: { data: FeatureCollection<Polygon, FieldProps> })
   const { map, isLoaded } = useMap()
   useEffect(() => {
     if (!map || !isLoaded) return
-    map.addSource("field-labels", { type: "geojson", data })
+    // One point per field: a label on the polygon itself is repeated in every map tile it crosses.
+    const points: FeatureCollection<Point, FieldProps> = {
+      type: "FeatureCollection",
+      features: data.features.map((f) => ({ ...f, geometry: { type: "Point", coordinates: centre(f.geometry) } })),
+    }
+    map.addSource("field-labels", { type: "geojson", data: points })
     map.addLayer({
       id: "field-labels",
       type: "symbol",

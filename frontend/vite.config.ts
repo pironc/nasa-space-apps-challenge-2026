@@ -6,6 +6,8 @@ import { defineConfig } from "vite"
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // The analysis service (FastAPI). `vite preview` uses the same proxy.
+  server: { proxy: { "/api": "http://localhost:8000" } },
   resolve: {
     alias: {
       "@": resolve(import.meta.dirname, "./src"),

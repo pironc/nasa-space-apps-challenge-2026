@@ -10,7 +10,8 @@
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc -b",
     "preview": "vite preview",
-    "check:press": "! grep -rnE \"active:[^ \\\"']*(scale|translate|rotate|skew)\" src"
+    "check:press": "! grep -rnE \"active:[^ \\\"']*(scale|translate|rotate|skew)\" src",
+    "check:data": "node --experimental-strip-types -e \"import('./src/lib/data.ts').then((m) => m.selfCheck())\""
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

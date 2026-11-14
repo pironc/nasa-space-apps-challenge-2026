@@ -1,28 +1,78 @@
-import { ChartLineIcon, CloudSunIcon, MousePointerClickIcon, SproutIcon } from "lucide-react"
-import type { ReactNode } from "react"
+import { MousePointerClickIcon, UnplugIcon } from "lucide-react"
+import { useState } from "react"
 
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { ClimateTab } from "@/components/climate-tab"
+import { SeasonsTab } from "@/components/seasons-tab"
+import { StrategiesTab } from "@/components/strategies-tab"
+import { Button } from "@/components/ui/button"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { centre, formatHa, ROTATIONS, type SavedField } from "@/lib/fields"
+import type { AnalysisState } from "@/lib/data"
+import { formatHa, ROTATIONS, type RotationId, type SavedField } from "@/lib/fields"
+import { DEFAULT_PRIORITIES } from "@/lib/rotation"
 
-export const TABS = ["overview", "climate", "strategies"] as const
+export const TABS = ["strategies", "seasons", "climate"] as const
 export type TabId = (typeof TABS)[number]
 
-function Pending({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
+/** Placeholders in the shape of what is about to appear, so nothing jumps when it does. */
+function TabSkeleton({ tab }: { tab: TabId }) {
+  if (tab === "strategies")
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-24 rounded-xl" />
+        <div className="grid gap-3 @2xl:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-96 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    )
+  if (tab === "seasons")
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="grid grid-cols-3 gap-1 @xl:grid-cols-5 @3xl:grid-cols-9">
+          {Array.from({ length: 9 }, (_, i) => (
+            <Skeleton key={i} className="h-16" />
+          ))}
+        </div>
+        <Skeleton className="h-4 w-56" />
+        <Skeleton className="h-52" />
+        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-32" />
+      </div>
+    )
   return (
-    <Empty className="border border-dashed">
-      <EmptyHeader>
-        <EmptyMedia variant="icon">{icon}</EmptyMedia>
-        <EmptyTitle className="text-sm">{title}</EmptyTitle>
-        <EmptyDescription className="text-xs">{children}</EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: 7 }, (_, i) => (
+          <Skeleton key={i} className="h-6" />
+        ))}
+      </div>
+      <Skeleton className="h-16" />
+      <Skeleton className="h-44" />
+    </div>
   )
 }
 
-type Props = { field: SavedField | undefined; tab: TabId; onTabChange: (tab: TabId) => void }
+type Props = {
+  field: SavedField | undefined
+  state: AnalysisState
+  tab: TabId
+  onTabChange: (tab: TabId) => void
+  /** The season the map date falls in: one selection shared by the map and the panel. */
+  year: number
+  onYear: (year: number) => void
+  onRotation: (rotation: RotationId) => void
+}
 
-export function AnalysisPanel({ field, tab, onTabChange }: Props) {
+export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, onRotation }: Props) {
+  // The farmer's priorities belong to the person, not the field: they survive tab and field changes.
+  const [priorities, setPriorities] = useState(DEFAULT_PRIORITIES)
+  const [drier, setDrier] = useState(0)
+
   if (!field) {
     return (
       <Empty className="h-full">
@@ -31,51 +81,106 @@ export function AnalysisPanel({ field, tab, onTabChange }: Props) {
             <MousePointerClickIcon />
           </EmptyMedia>
           <EmptyTitle>Select a field</EmptyTitle>
-          <EmptyDescription>Pick one from My fields or click its outline on the map to see how it has fared.</EmptyDescription>
+          <EmptyDescription>Pick a demo field or one of your own, or click an outline on the map, to see how it has fared.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     )
   }
 
-  const [lon, lat] = centre(field.geometry)
+  const soil = state.status === "ready" ? state.analysis.soil : null
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
-      <header className="flex flex-col gap-3">
-        <h2 className="text-lg leading-tight font-semibold tracking-tight text-balance">{field.name}</h2>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="text-muted-foreground">Area</dt>
-          <dd className="tabular-nums">{formatHa(field.areaHa)}</dd>
-          <dt className="text-muted-foreground">Rotation</dt>
-          <dd>{ROTATIONS[field.rotation]}</dd>
-          <dt className="text-muted-foreground">Centre</dt>
-          <dd className="tabular-nums">
-            {lat.toFixed(3)}° N, {lon.toFixed(3)}° E
-          </dd>
-        </dl>
+    <div className="@container flex h-full flex-col gap-4 overflow-y-auto p-4">
+      <header className="flex flex-col gap-3 @2xl:flex-row @2xl:items-start @2xl:justify-between">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 className="text-lg leading-tight font-semibold tracking-tight text-balance">{field.name}</h2>
+          <p className="text-sm text-muted-foreground tabular-nums">
+            {field.preset && `${field.preset.region} · `}
+            {formatHa(field.areaHa)}
+          </p>
+          {field.preset?.note && <p className="text-xs text-pretty text-muted-foreground">{field.preset.note}</p>}
+          {soil && (
+            <p className="text-xs text-muted-foreground tabular-nums" title={soil.source}>
+              Modelled soil: clay {Math.round(soil.clayPct)}%, sand {Math.round(soil.sandPct)}%, pH {soil.ph.toFixed(1)} (not a field test)
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-col gap-1.5">
+          <Label htmlFor="panel-rotation" className="text-xs text-muted-foreground">
+            Current rotation
+          </Label>
+          <Select value={field.rotation} onValueChange={(v) => onRotation(v as RotationId)}>
+            <SelectTrigger id="panel-rotation" className="w-full @2xl:w-64">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(ROTATIONS).map(([id, label]) => (
+                <SelectItem key={id} value={id}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </header>
-      <Tabs value={tab} onValueChange={(v) => onTabChange(v as TabId)} className="min-h-0 flex-1">
-        <TabsList className="w-full">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="climate">Climate</TabsTrigger>
-          <TabsTrigger value="strategies">Strategies</TabsTrigger>
-        </TabsList>
-        <TabsContent value="overview">
-          <Pending icon={<ChartLineIcon />} title="Vegetation history is not connected yet">
-            This tab will chart the field's greenness and moisture for every season since 2018 and flag the years that fell short.
-          </Pending>
-        </TabsContent>
-        <TabsContent value="climate">
-          <Pending icon={<CloudSunIcon />} title="Climate record is not connected yet">
-            This tab will set each season's rain, heat and frost against the 30-year normal from NASA POWER.
-          </Pending>
-        </TabsContent>
-        <TabsContent value="strategies">
-          <Pending icon={<SproutIcon />} title="Rotation comparison is not connected yet">
-            This tab will compare your current rotation with a water-resilient and a soil-restoring alternative.
-          </Pending>
-        </TabsContent>
-      </Tabs>
+
+      {state.status === "failed" ? (
+        <Empty className="border border-dashed">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <UnplugIcon />
+            </EmptyMedia>
+            <EmptyTitle className="text-sm">{field.preset ? "This demo field did not load" : "Live analysis is not available"}</EmptyTitle>
+            <EmptyDescription className="text-xs">
+              {field.preset
+                ? "Its data file could not be read. Check the connection and try again."
+                : "Live analysis needs the analysis service, which is not reachable. The demo fields work without it."}
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button variant="outline" size="sm" onClick={state.retry}>
+              Retry
+            </Button>
+          </EmptyContent>
+        </Empty>
+      ) : (
+        <Tabs value={tab} onValueChange={(v) => onTabChange(v as TabId)} className="min-h-0 flex-1 gap-4">
+          <TabsList className="w-full @2xl:w-88">
+            <TabsTrigger value="strategies">Strategies</TabsTrigger>
+            <TabsTrigger value="seasons">Seasons</TabsTrigger>
+            <TabsTrigger value="climate">Climate</TabsTrigger>
+          </TabsList>
+          {state.status === "loading" ? (
+            <div role="status" aria-label="Loading the analysis" className="flex flex-col gap-3">
+              {!field.preset && (
+                <p className="text-xs text-pretty text-muted-foreground">
+                  Reading every season of satellite passes over this field. A field seen for the first time takes about 15 seconds.
+                </p>
+              )}
+              <TabSkeleton tab={tab} />
+            </div>
+          ) : (
+            <>
+              <TabsContent value="strategies">
+                <StrategiesTab
+                  analysis={state.analysis}
+                  declared={field.rotation}
+                  priorities={priorities}
+                  onPriorities={setPriorities}
+                  drier={drier}
+                  onDrier={setDrier}
+                />
+              </TabsContent>
+              <TabsContent value="seasons">
+                <SeasonsTab key={field.id} analysis={state.analysis} year={year} onYear={onYear} defaultCompare={field.preset?.demoYears[1]} />
+              </TabsContent>
+              <TabsContent value="climate">
+                <ClimateTab analysis={state.analysis} year={year} onYear={onYear} />
+              </TabsContent>
+            </>
+          )}
+        </Tabs>
+      )}
     </div>
   )
 }
