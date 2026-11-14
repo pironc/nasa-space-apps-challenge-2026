@@ -9,12 +9,13 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/compone
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { loadPresets, midJuly, useAnalysis } from "@/lib/data"
+import { loadPresets, midJuly, useAnalysis, type Declared } from "@/lib/data"
 import { presetToField, useSavedFields, type RotationId, type SavedField } from "@/lib/fields"
 import { DEFAULT_DATE, defaultLayerState, snapDate, type LayerId, type LayerState } from "@/lib/layers"
 
 const query = new URLSearchParams(location.search)
 const initialTab = TABS.find((t) => t === query.get("tab")) ?? "strategies"
+const NO_ANSWERS = {}
 
 export function App() {
   const isMobile = useIsMobile()
@@ -24,6 +25,8 @@ export function App() {
   const [selectedId, setSelectedId] = useState<string | null>(query.get("field"))
   const [tab, setTab] = useState<TabId>(initialTab)
   const [layers, setLayers] = useState<LayerState>(defaultLayerState)
+  // "Crop or fallow?" answers, per field then year. This visit only: a re-analysis with them needs the service.
+  const [answers, setAnswers] = useState<Record<string, Record<string, Declared>>>({})
   const fields = useMemo(() => [...presets, ...saved], [presets, saved])
   const selected = fields.find((f) => f.id === selectedId)
   const analysis = useAnalysis(selected)
@@ -78,10 +81,20 @@ export function App() {
       year={year}
       onYear={(y) => setDate(snapDate(midJuly(y)))}
       onRotation={onRotation}
+      answers={(selectedId && answers[selectedId]) || NO_ANSWERS}
+      onDeclare={(y, use) =>
+        selectedId &&
+        setAnswers((prev) => {
+          const next = { ...prev[selectedId] }
+          if (use) next[y] = use
+          else delete next[y]
+          return { ...prev, [selectedId]: next }
+        })
+      }
     />
   )
-  // Three strategy cards side by side need room; the other tabs read better narrow.
-  // Below 1280 px the cards would not fit three across, so the panel stays narrow and they stack.
+  // Strategy cards side by side need room; the other tabs read better narrow. The wide panel gives way
+  // (down to two cards across) before the map gets narrower than 420 px. Below 1280 px the panel stays narrow.
   const wide = !!selected && tab === "strategies" && analysis.status !== "failed"
 
   return (
@@ -99,7 +112,7 @@ export function App() {
       />
       <SidebarInset className="h-dvh flex-row overflow-hidden">
         {/* isolate: keeps the map's own stacking below dialogs, sheets and toasts */}
-        <div className="@container relative isolate min-w-0 flex-1">
+        <div className="@container relative isolate min-w-0 flex-1 xl:min-w-[420px]">
           <FieldMap
             date={date}
             layers={layers}
@@ -117,7 +130,7 @@ export function App() {
             <TimeSlider date={date} onChange={setDate} />
           </div>
         </div>
-        {!isMobile && <aside className={`shrink-0 border-l bg-background ${wide ? "w-88 xl:w-[min(60vw,56rem)]" : "w-88"}`}>{panel}</aside>}
+        {!isMobile && <aside className={`w-88 shrink-0 border-l bg-background ${wide ? "xl:w-[56rem] xl:min-w-88 xl:shrink" : ""}`}>{panel}</aside>}
       </SidebarInset>
       {/* Mounted only while a field is selected: vaul's non-modal mode frees the page behind the
           drawer once, on mount, so a drawer that opens later would leave the map untouchable. */}

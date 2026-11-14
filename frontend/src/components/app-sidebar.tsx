@@ -73,7 +73,7 @@ export function AppSidebar({ year, layers, onLayerChange, presets, fields, obtai
     <Sidebar>
       <SidebarHeader className="px-4 pt-4 pb-2">
         <div className="text-base font-semibold tracking-tight">Field Shift</div>
-        <p className="text-xs text-muted-foreground">Crop stress and rotation options, from NASA Earth data</p>
+        <p className="text-xs text-muted-foreground">Season findings and rotation options, from NASA Earth data</p>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

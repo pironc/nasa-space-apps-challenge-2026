@@ -1,33 +1,27 @@
-import { CircleCheckIcon, EyeIcon, InfoIcon, OctagonAlertIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react"
-import { useState } from "react"
+import { CircleHelpIcon, CircleIcon, EyeIcon, InfoIcon, OctagonAlertIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react"
 import { Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ReferenceArea, XAxis, YAxis } from "recharts"
 
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import type { FieldAnalysis, LandUse, Severity } from "@/lib/analysis"
-import { modisSentence, worstSeverity } from "@/lib/data"
+import type { FieldAnalysis, Severity } from "@/lib/analysis"
+import { landUse, modisSentence, seasonStatus, type Declared } from "@/lib/data"
 import { FIRST_YEAR } from "@/lib/layers"
 
-const USE: Record<LandUse, string> = {
-  cropped: "Cropped",
-  fallow: "Fallow",
-  ambiguous: "Unclear",
-  early_green: "Early green",
-  unknown: "No data",
-}
-
 // Status colour sits on the icon only; the word next to it carries the same meaning.
-const STATUS: Record<Severity | "none", { icon: LucideIcon; label: string; tone: string }> = {
-  none: { icon: CircleCheckIcon, label: "No flags", tone: "text-status-good" },
+// No green tick for a quiet season: no finding is not the same as a good crop.
+const STATUS: Record<Severity | "none" | "question" | "answered", { icon: LucideIcon; label: string; tone: string }> = {
+  none: { icon: CircleIcon, label: "No finding", tone: "text-muted-foreground" },
+  question: { icon: CircleHelpIcon, label: "Your input", tone: "text-primary" },
+  answered: { icon: CircleHelpIcon, label: "Answered", tone: "text-muted-foreground" },
   info: { icon: InfoIcon, label: "Note", tone: "text-muted-foreground" },
   watch: { icon: EyeIcon, label: "Watch", tone: "text-status-watch" },
   warning: { icon: TriangleAlertIcon, label: "Warning", tone: "text-status-warning" },
   severe: { icon: OctagonAlertIcon, label: "Severe", tone: "text-status-severe" },
 }
 
-function Status({ severity, className }: { severity: Severity | null; className?: string }) {
+function Status({ severity, className }: { severity: keyof typeof STATUS | null; className?: string }) {
   const s = STATUS[severity ?? "none"]
   return <s.icon aria-label={s.label} className={`size-3.5 shrink-0 ${s.tone} ${className ?? ""}`} />
 }
@@ -53,16 +47,129 @@ const modisConfig = { peak: { label: "Peak greenness (NDVI)" } } satisfies Chart
 
 const HATCH = "repeating-linear-gradient(135deg,var(--muted-foreground) 0 1.5px,transparent 1.5px 4px)"
 
+/** What the record says about one season: land use first, then findings, notes and the weather reading. */
+function Findings({
+  analysis,
+  year,
+  declared,
+  onDeclare,
+}: {
+  analysis: FieldAnalysis
+  year: number
+  declared: Declared | null
+  onDeclare: (use: Declared | null) => void
+}) {
+  const season = analysis.seasons.find((s) => s.year === year)
+  if (!season) return null
+  const use = landUse(season, declared)
+  const levelled = season.verdicts.some((v) => (v.type === "VEG_DEFICIT" || v.type === "BARE_SOIL") && v.severity !== "info")
+  const others = analysis.baseline?.years.filter((y) => y !== year).length
+  return (
+    <ul className="flex flex-col gap-2.5">
+      <li className="flex gap-2">
+        <InfoIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+        <div>
+          <div className="font-medium">
+            Land use in {year}: {use.label.toLowerCase()} ({use.source})
+          </div>
+          <div className="text-xs text-pretty text-muted-foreground">
+            {use.source === "declared"
+              ? "Given by the person who knows the field, so it is used instead of the reading from the greenness curve."
+              : "Read from the shape of the greenness curve alone. A fallow year and a failed crop can look alike, so check it against what you know of the field."}
+          </div>
+        </div>
+      </li>
+      {season.verdicts.map((v, i) =>
+        v.type === "LAND_USE_UNCLEAR" ? (
+          // A question to the person who knows the field, not a finding about it.
+          <li key={i} className="flex flex-col gap-2 rounded-lg border border-dashed p-3">
+            <div className="flex gap-2">
+              <Status severity="question" className="mt-0.5" />
+              <div>
+                <div className="font-medium">{v.title}</div>
+                <div className="text-xs text-pretty text-muted-foreground">{v.detail}</div>
+              </div>
+            </div>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              spacing={1}
+              aria-label={`Land use in ${year}`}
+              value={declared ?? ""}
+              onValueChange={(u) => onDeclare((u || null) as Declared | null)}
+              className="pl-5.5"
+            >
+              <ToggleGroupItem value="crop" className="data-[state=on]:border-primary data-[state=on]:bg-primary/10">
+                It was a crop
+              </ToggleGroupItem>
+              <ToggleGroupItem value="fallow" className="data-[state=on]:border-primary data-[state=on]:bg-primary/10">
+                It was fallow
+              </ToggleGroupItem>
+            </ToggleGroup>
+            {declared && (
+              <p className="pl-5.5 text-xs text-pretty text-muted-foreground">
+                This choice is shown here; the season findings are recalculated when the field is analysed again.
+              </p>
+            )}
+          </li>
+        ) : v.type === "NOTE" ? (
+          <li key={i} className="flex gap-2 text-xs text-pretty text-muted-foreground">
+            <InfoIcon className="mt-px size-3.5 shrink-0" />
+            <div>
+              <div className="font-medium">{v.title}</div>
+              {v.detail}
+            </div>
+          </li>
+        ) : (
+          <li key={i} className="flex gap-2">
+            <Status severity={v.severity} className="mt-0.5" />
+            <div>
+              <div className="font-medium">
+                {v.title} <span className="font-normal text-muted-foreground">({STATUS[v.severity].label.toLowerCase()})</span>
+              </div>
+              <div className="text-xs text-pretty text-muted-foreground">{v.detail}</div>
+            </div>
+          </li>
+        )
+      )}
+      {levelled && (
+        <li className="pl-5.5 text-xs text-pretty text-muted-foreground">
+          Indicative level, compared with this field's own {others || ""} other cropped seasons; not checked against yield.
+        </li>
+      )}
+      {season.verdicts.length === 0 && (
+        <li className="flex gap-2">
+          <Status severity={null} className="mt-0.5" />
+          <div>
+            <div className="font-medium">No finding from satellite greenness in {year}</div>
+            <div className="text-xs text-pretty text-muted-foreground">Weeds, disease and grain quality do not always change greenness.</div>
+          </div>
+        </li>
+      )}
+      {season.explanation && (
+        <li className="flex flex-col gap-1 border-t pt-2.5">
+          <h4 className="text-xs font-medium text-muted-foreground">Weather and this field</h4>
+          <p className="text-pretty">{season.explanation}</p>
+        </li>
+      )}
+    </ul>
+  )
+}
+
 type Props = {
   analysis: FieldAnalysis
   year: number
   onYear: (year: number) => void
-  /** The good demo year of a preset: the comparison a first visit opens on. */
-  defaultCompare?: number
+  /** The second season drawn on the chart. Held by the panel so it survives a change of tab. */
+  compare: number | null
+  onCompare: (year: number | null) => void
+  /** Land use the owner gave, by year: shipped with a demo field or answered in this session. */
+  declared: Record<string, Declared>
+  onDeclare: (year: number, use: Declared | null) => void
 }
 
-export function SeasonsTab({ analysis, year, onYear, defaultCompare }: Props) {
-  const [compare, setCompare] = useState<number | null>(defaultCompare ?? null)
+export function SeasonsTab({ analysis, year, onYear, compare, onCompare, declared, onDeclare }: Props) {
   const { seasons, baseline, modis, dekads } = analysis
   const season = seasons.find((s) => s.year === year)
   const other = compare === year ? undefined : seasons.find((s) => s.year === compare)
@@ -88,18 +195,21 @@ export function SeasonsTab({ analysis, year, onYear, defaultCompare }: Props) {
         className="grid w-full grid-cols-3 @xl:grid-cols-5 @3xl:grid-cols-9"
       >
         {seasons.map((s) => {
-          const worst = worstSeverity(s)
+          const status = seasonStatus(s, declared[s.year]) ?? "none"
+          const use = landUse(s, declared[s.year])
           return (
             <ToggleGroupItem
               key={s.year}
               value={String(s.year)}
-              className="h-auto flex-col items-start gap-0.5 px-2 py-1.5 text-left font-normal data-[state=on]:border-primary data-[state=on]:bg-primary/10"
+              className="h-auto flex-col items-start justify-start gap-0.5 px-2 py-1.5 text-left font-normal whitespace-normal data-[state=on]:border-primary data-[state=on]:bg-primary/10"
             >
               <span className="text-sm font-medium tabular-nums">{s.year}</span>
-              <span className="text-xs text-muted-foreground">{USE[s.use]}</span>
+              <span className="text-xs leading-tight text-muted-foreground">
+                {use.label}, {use.source}
+              </span>
               <span className="flex items-center gap-1 text-xs">
-                <Status severity={worst} />
-                {STATUS[worst ?? "none"].label}
+                <Status severity={status} />
+                {STATUS[status].label}
               </span>
             </ToggleGroupItem>
           )
@@ -116,7 +226,7 @@ export function SeasonsTab({ analysis, year, onYear, defaultCompare }: Props) {
             <Label htmlFor="compare-year" className="text-xs font-normal text-muted-foreground">
               Compare with
             </Label>
-            <Select value={String(compare ?? "none")} onValueChange={(v) => setCompare(v === "none" ? null : +v)}>
+            <Select value={String(compare ?? "none")} onValueChange={(v) => onCompare(v === "none" ? null : +v)}>
               <SelectTrigger id="compare-year" size="sm" className="w-24 tabular-nums">
                 <SelectValue />
               </SelectTrigger>
@@ -183,35 +293,7 @@ export function SeasonsTab({ analysis, year, onYear, defaultCompare }: Props) {
               <p className="text-xs text-muted-foreground">There are not enough cropped seasons yet to draw this field's own normal.</p>
             )}
 
-            <ul className="flex flex-col gap-2.5">
-              <li className="flex gap-2">
-                <InfoIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-                <div>
-                  <div className="font-medium">Land use in {year}: {USE[season.use].toLowerCase()} (inferred)</div>
-                  <div className="text-xs text-pretty text-muted-foreground">
-                    Read from the shape of the greenness curve alone. A fallow year and a failed crop can look alike, so check it against what
-                    you know of the field.
-                  </div>
-                </div>
-              </li>
-              {season.verdicts.map((v) => (
-                <li key={v.type} className="flex gap-2">
-                  <Status severity={v.severity} className="mt-0.5" />
-                  <div>
-                    <div className="font-medium">
-                      {v.title} <span className="font-normal text-muted-foreground">({STATUS[v.severity].label.toLowerCase()})</span>
-                    </div>
-                    <div className="text-xs text-pretty text-muted-foreground">{v.detail}</div>
-                  </div>
-                </li>
-              ))}
-              {season.verdicts.length === 0 && (
-                <li className="flex gap-2">
-                  <Status severity={null} className="mt-0.5" />
-                  <div className="font-medium">Nothing flagged for {year}</div>
-                </li>
-              )}
-            </ul>
+            <Findings analysis={analysis} year={year} declared={declared[year] ?? null} onDeclare={(use) => onDeclare(year, use)} />
           </>
         ) : (
           <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
@@ -223,7 +305,7 @@ export function SeasonsTab({ analysis, year, onYear, defaultCompare }: Props) {
       <section className="flex flex-col gap-2">
         <div>
           <h3 className="text-sm font-medium">NASA MODIS record since 2000</h3>
-          <p className="text-xs text-muted-foreground">Peak summer greenness (NDVI) each year, at 250 m detail</p>
+          <p className="text-xs text-muted-foreground">Peak summer greenness (NDVI) each year, from 250 m pixels that include neighbouring land</p>
         </div>
         {modis ? (
           <>
@@ -252,7 +334,7 @@ export function SeasonsTab({ analysis, year, onYear, defaultCompare }: Props) {
                       hideIndicator
                       labelFormatter={(_, payload) => {
                         const m = payload[0]?.payload
-                        return m ? `${m.year}${m.use === "fallow" ? ", fallow (inferred)" : ""}` : null
+                        return m ? `${m.year}${m.use === "fallow" ? ", fallow or bare, not ranked" : ""}` : null
                       }}
                       formatter={(value) => (
                         <>
@@ -276,10 +358,10 @@ export function SeasonsTab({ analysis, year, onYear, defaultCompare }: Props) {
             </ChartContainer>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <Key swatch="size-2.5 rounded-[2px] bg-chart-1">{year}</Key>
-              <Key swatch="size-2.5 rounded-[2px] bg-muted-foreground/45">Cropped year</Key>
+              <Key swatch="size-2.5 rounded-[2px] bg-muted-foreground/45">Cropped-looking summer</Key>
               <span className="flex items-center gap-1.5">
                 <span aria-hidden className="inline-block size-2.5 shrink-0 rounded-[2px]" style={{ background: HATCH }} />
-                Fallow year (inferred)
+                Fallow or bare summer (not ranked)
               </span>
               <span>Empty: no reliable reading</span>
             </div>
@@ -287,7 +369,7 @@ export function SeasonsTab({ analysis, year, onYear, defaultCompare }: Props) {
           </>
         ) : (
           <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-            The NASA MODIS record is not available for this field. Its 250 m pixels are too coarse to read fields under about 100 ha.
+            The NASA MODIS record is not shown for this field. Its 250 m pixels mix a field of this size with its neighbours.
           </p>
         )}
       </section>

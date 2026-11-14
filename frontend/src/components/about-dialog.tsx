@@ -3,38 +3,42 @@ import { InfoIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
+// Texts from the science review (docs/research/plan-review, "Material" sections 2, 3 and 5), lightly trimmed.
 const GLOSSARY: [string, string][] = [
   [
-    "NDVI",
-    "A greenness score from 0 to 1, worked out from how much red and near-infrared light the land reflects. Bare soil reads about 0.1 to 0.2; a dense, healthy crop 0.7 or more.",
+    "NDVI (greenness index)",
+    "A number from about 0.1 (bare soil) to 0.9 (dense green crop), worked out from red and near-infrared light. More green leaf, higher number.",
   ],
   [
-    "NDMI",
-    "A moisture score for the leaves, from near-infrared and shortwave-infrared light. A low value when the crop is at its greenest suggests it was short of water.",
+    "NDMI (canopy moisture index)",
+    "A similar number that drops when leaves hold less water or the canopy is thin. It supports a dry-season reading; it does not measure soil water.",
   ],
-  ["Fallow", "A field left unsown for a season to store water and control weeds. From orbit it stays bare all summer."],
+  ["Peak greenness", "The highest NDVI the field reached between 1 June and 20 August. The app compares it with the field's own usual peak."],
   [
-    "Ten-day bin",
-    "The season from 1 May to 30 September is cut into 15 ten-day steps. Each step holds the field average of the cloud-free satellite passes in those days.",
-  ],
-  [
-    "Baseline (the field's normal)",
-    "The middle curve of the field's own other cropped seasons. Each year is compared with the field itself, never with a neighbour.",
+    "Baseline (the field's usual)",
+    "The middle value of this same field in its other cropped years since 2018. Fallow years are left out.",
   ],
   [
-    "Hydrothermal coefficient",
-    "Selyaninov's drought index: May to August rain divided by one tenth of the summed daily temperatures of the days warmer than 10 °C. About 1 means rain kept pace with the heat; below 0.6 is a severe drought.",
+    "Fallow",
+    "A year with no crop, the soil kept bare or under stubble to store water and control weeds. From space it looks like a failed crop, so the app asks you.",
   ],
   [
-    "MODIS",
-    "A NASA instrument on the Terra satellite that has imaged the whole Earth every day since 2000, at 250 m detail. Coarse, but the long record shows how unusual a season is. It reads a little greener than Sentinel-2, so each is compared only with itself.",
+    "Cloud-free share",
+    "The part of the field a satellite saw clearly on a given day. Images with less than three quarters of the field clear are not used.",
+  ],
+  ["Dekad", "A ten-day block. The season from 1 May to 30 September is cut into 15 of them so years can be compared."],
+  [
+    "Grid cell (regional weather)",
+    "The roughly 50 km square for which NASA POWER gives one weather value. Every field inside it gets the same rain and temperature.",
   ],
   [
-    "Sentinel-2",
-    "Two European Space Agency (ESA) satellites that pass over each field every few days at 10 m detail. Used here from 2018 for the within-field picture.",
+    "Hydrothermal coefficient (HTC, Selyaninov)",
+    "Rain divided by one tenth of the summed daily temperatures on warm days. Around 1 means enough moisture; below 0.6 is dry. Used by Kazhydromet.",
   ],
-  ["NASA POWER", "NASA's global daily weather record (rain, temperature, soil wetness), built from satellites and weather models and going back to 1981."],
-  ["Grid cell", "One square of the weather record, about 55 x 42 km here. Every field inside it gets the same weather numbers."],
+  [
+    "Carry-over",
+    "What one season leaves for the next, either less soil water after a thirsty crop or herbicide residue that can injure the following crop. Satellites cannot see either.",
+  ],
 ]
 
 type Props = {
@@ -57,9 +61,32 @@ export function AboutDialog({ year, obtained }: Props) {
       <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>About the data</DialogTitle>
-          <DialogDescription>What the terms mean, what satellites can and cannot tell you, and where the numbers come from.</DialogDescription>
+          <DialogDescription>How sure the results are, what satellites can and cannot tell you, what the terms mean, and where the numbers come from.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-5 text-sm">
+          <section className="flex flex-col gap-2">
+            <h3 className="font-medium">How sure is this?</h3>
+            <p className="text-pretty text-muted-foreground">
+              Field greenness comes from Sentinel-2 images. Cloud can hide a field for weeks, so a season rests on roughly 12 to 30 usable images
+              and its peak can be missed. Finding levels compare this field with its own other cropped seasons (at most eight); the thresholds are
+              indicative and have not been checked against yields or ground data. Weather comes from NASA POWER, a modelled grid of about 50 km:
+              every field in a cell gets the same numbers, and a local storm, hail or a frost pocket is invisible. Crop stage dates are estimates,
+              plus or minus 10 days. Rotation scores rest on a draft crop catalogue in which many values are the authors' judgement and no local
+              agronomist has reviewed it; prices are dated. Treat every result as a reason to go and look, not as a conclusion.
+            </p>
+          </section>
+          <section className="flex flex-col gap-2">
+            <h3 className="font-medium">Satellite data versus ground measurements</h3>
+            <p className="text-pretty text-muted-foreground">
+              A satellite measures reflected light, not the crop. NDVI tells how much green leaf covers the ground. It does not measure yield,
+              grain quality, soil moisture, nutrients or disease, and it cannot tell crop from weeds: a weedy field can look as green as a good
+              crop, and a failed crop can look like fallow. A Sentinel-2 pixel is 10 to 20 m; the field value is the middle value of the cloud-free
+              pixels on that day. A MODIS pixel is 250 m and mixes your field with its neighbours. Rain, temperature and soil wetness in this app
+              are model estimates for an area about 50 km wide (9 km for the soil-moisture map layer), not readings from your field. A rain gauge,
+              a soil probe or a walk through the crop is more accurate for your field and should overrule the app when they disagree. What
+              satellites add is the same measurement on every field, every few days, back to 2018.
+            </p>
+          </section>
           <section className="flex flex-col gap-2">
             <h3 className="font-medium">Glossary</h3>
             <dl className="flex flex-col gap-2">
@@ -70,25 +97,6 @@ export function AboutDialog({ year, obtained }: Props) {
                 </div>
               ))}
             </dl>
-          </section>
-          <section className="flex flex-col gap-2">
-            <h3 className="font-medium">Satellite data and ground measurements</h3>
-            <p className="text-pretty text-muted-foreground">
-              A satellite measures light reflected from the surface, a few times a month when the sky is clear, averaged over squares of 10 to 250
-              m. It sees how green and how moist the canopy is. It does not see which crop was sown, the yield, soil nutrients, salinity, pH, water
-              stored at depth, weeds, pests or disease. The weather figures are modelled for a wide area, not read from a gauge in the field. A
-              soil test, a rain gauge and a walk through the crop will always know things this tool cannot.
-            </p>
-          </section>
-          <section className="flex flex-col gap-2">
-            <h3 className="font-medium">How sure is this?</h3>
-            <ul className="flex list-disc flex-col gap-1 pl-4 text-pretty text-muted-foreground">
-              <li>The thresholds behind every flag are indicative. They were tuned on a handful of fields and have not been tested on the ground.</li>
-              <li>A fallow year and a failed crop can look alike from orbit. Land use is inferred, so correct it from what you know.</li>
-              <li>Weather is regional: one figure for an area of about 55 x 42 km. A local storm or dry patch does not show.</li>
-              <li>Rotation scores are relative and rest on published trials plus unreviewed judgement. They are not yield or price forecasts.</li>
-              <li>The tool supports a decision. It does not make one: check any change with a local agronomist.</li>
-            </ul>
           </section>
           <section className="flex flex-col gap-2">
             <h3 className="font-medium">Data credits</h3>

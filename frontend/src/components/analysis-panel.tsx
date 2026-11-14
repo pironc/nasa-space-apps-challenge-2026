@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { AnalysisState } from "@/lib/data"
+import type { AnalysisState, Declared } from "@/lib/data"
 import { formatHa, ROTATIONS, type RotationId, type SavedField } from "@/lib/fields"
 import { DEFAULT_PRIORITIES } from "@/lib/rotation"
 
@@ -23,7 +23,7 @@ function TabSkeleton({ tab }: { tab: TabId }) {
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-24 rounded-xl" />
-        <div className="grid gap-3 @2xl:grid-cols-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(17rem,1fr))] gap-3">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-96 rounded-xl" />
           ))}
@@ -66,12 +66,17 @@ type Props = {
   year: number
   onYear: (year: number) => void
   onRotation: (rotation: RotationId) => void
+  /** Land use the user gave for this field in this session, by year. */
+  answers: Record<string, Declared>
+  onDeclare: (year: number, use: Declared | null) => void
 }
 
-export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, onRotation }: Props) {
+export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, onRotation, answers, onDeclare }: Props) {
   // The farmer's priorities belong to the person, not the field: they survive tab and field changes.
   const [priorities, setPriorities] = useState(DEFAULT_PRIORITIES)
   const [drier, setDrier] = useState(0)
+  // The comparison year of each field, kept here so it survives a change of tab.
+  const [compare, setCompare] = useState<Record<string, number | null>>({})
 
   if (!field) {
     return (
@@ -154,7 +159,7 @@ export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, on
             <div role="status" aria-label="Loading the analysis" className="flex flex-col gap-3">
               {!field.preset && (
                 <p className="text-xs text-pretty text-muted-foreground">
-                  Reading every season of satellite passes over this field. A field seen for the first time takes about 15 seconds.
+                  Reading every season of satellite passes over this field. A field seen for the first time takes about 30 to 45 seconds.
                 </p>
               )}
               <TabSkeleton tab={tab} />
@@ -172,7 +177,15 @@ export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, on
                 />
               </TabsContent>
               <TabsContent value="seasons">
-                <SeasonsTab key={field.id} analysis={state.analysis} year={year} onYear={onYear} defaultCompare={field.preset?.demoYears[1]} />
+                <SeasonsTab
+                  analysis={state.analysis}
+                  year={year}
+                  onYear={onYear}
+                  compare={field.id in compare ? compare[field.id] : (field.preset?.demoYears[1] ?? null)}
+                  onCompare={(y) => setCompare((prev) => ({ ...prev, [field.id]: y }))}
+                  declared={{ ...field.preset?.declaredUse, ...answers }}
+                  onDeclare={onDeclare}
+                />
               </TabsContent>
               <TabsContent value="climate">
                 <ClimateTab analysis={state.analysis} year={year} onYear={onYear} />

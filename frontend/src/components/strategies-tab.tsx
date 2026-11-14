@@ -7,12 +7,12 @@ import { Slider } from "@/components/ui/slider"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { FieldAnalysis, Indicator, Priorities, Strategy } from "@/lib/analysis"
 import type { RotationId } from "@/lib/fields"
-import { compareStrategies } from "@/lib/rotation"
+import { compareStrategies, cropLabel } from "@/lib/rotation"
 
 const PRIORITIES: { key: keyof Priorities; label: string }[] = [
   { key: "water", label: "Save water" },
   { key: "soil", label: "Build soil" },
-  { key: "income", label: "Income now" },
+  { key: "income", label: "Market and output" },
 ]
 
 const weight = (v: number) => (v < 0.34 ? "Low" : v < 0.67 ? "Medium" : "High")
@@ -64,25 +64,24 @@ function Points({ title, icon, items }: { title: string; icon?: ReactNode; items
   )
 }
 
-/** Year by year. The engine's own wording when it names four crops, otherwise the crop ids. */
-function cropNames(s: Strategy) {
-  const named = s.rotationLabel.split(", ")
-  return named.length === s.rotation.length ? named : s.rotation.map((id) => id.replaceAll("_", " "))
-}
-
 function StrategyCard({ strategy }: { strategy: Strategy }) {
   return (
     <Card size="sm" className="@container/strategy">
       <CardHeader>
         <CardTitle>{strategy.title}</CardTitle>
         <CardDescription>{strategy.rotationLabel}</CardDescription>
+        {strategy.evidenceGrade && (
+          <p className="text-xs text-muted-foreground">
+            Evidence: <span className="text-foreground">{strategy.evidenceGrade}</span>
+          </p>
+        )}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <ol className="grid grid-cols-2 gap-1 @xs/strategy:grid-cols-4">
-          {cropNames(strategy).map((crop, i) => (
+          {strategy.rotation.map((id, i) => (
             <li key={i} className="rounded-md border px-2 py-1 leading-tight">
               <div className="text-[0.6875rem] text-muted-foreground">Year {i + 1}</div>
-              <div className="text-xs font-medium first-letter:uppercase">{crop}</div>
+              <div className="text-xs font-medium">{cropLabel(id)}</div>
             </li>
           ))}
         </ol>
@@ -107,7 +106,7 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
           </p>
         )}
         <Points title="Why" items={strategy.why} />
-        <Points title="Evidence" items={strategy.evidence} />
+        <Points title="What this rests on" items={strategy.evidence} />
         <Points title="Benefits" items={strategy.benefits} />
         {/* The product's promise: these two are on every card, never hidden. */}
         <div className="flex flex-col gap-3 border-t pt-3">
@@ -158,11 +157,15 @@ export function StrategiesTab({ analysis, declared, priorities, onPriorities, dr
         </div>
       </section>
 
-      <div className="grid gap-3 @2xl:grid-cols-3">
-        {strategies.map((s) => (
-          <StrategyCard key={s.kind} strategy={s} />
-        ))}
-      </div>
+      <section className="flex flex-col gap-2">
+        <h3 className="text-sm font-medium">Options to discuss with your agronomist</h3>
+        {/* as many cards across as fit at 17rem each: three in the full-width panel, two when the map needs the room */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(17rem,1fr))] gap-3">
+          {strategies.map((s, i) => (
+            <StrategyCard key={i} strategy={s} />
+          ))}
+        </div>
+      </section>
 
       <section className="flex flex-col gap-2">
         <h3 className="text-sm font-medium">Side by side</h3>
@@ -170,8 +173,8 @@ export function StrategiesTab({ analysis, declared, priorities, onPriorities, dr
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="h-auto w-[28%] py-2 pl-0 align-bottom whitespace-normal">Indicator</TableHead>
-              {strategies.map((s) => (
-                <TableHead key={s.kind} className="h-auto py-2 align-bottom leading-tight whitespace-normal">
+              {strategies.map((s, i) => (
+                <TableHead key={i} className="h-auto py-2 align-bottom leading-tight whitespace-normal">
                   {s.title}
                 </TableHead>
               ))}
@@ -181,8 +184,8 @@ export function StrategiesTab({ analysis, declared, priorities, onPriorities, dr
             {strategies[0]?.indicators.map((row, i) => (
               <TableRow key={row.key} className="hover:bg-transparent">
                 <TableCell className="pl-0 text-xs whitespace-normal">{row.label}</TableCell>
-                {strategies.map((s) => (
-                  <TableCell key={s.kind}>
+                {strategies.map((s, k) => (
+                  <TableCell key={k}>
                     <div className="flex flex-col gap-1">
                       <span className="text-xs">{s.indicators[i].level}</span>
                       <Meter indicator={s.indicators[i]} />
@@ -194,8 +197,8 @@ export function StrategiesTab({ analysis, declared, priorities, onPriorities, dr
           </TableBody>
         </Table>
         <p className="text-xs text-pretty text-muted-foreground">
-          Bars compare the three options with each other. They are relative scores built from published trial results and unreviewed judgement on
-          crop traits, not yield or price forecasts. The choice stays with you and your agronomist.
+          Bars compare the options with each other. They are relative scores, not yield or price forecasts, and they rest on a draft crop
+          catalogue that no local agronomist has reviewed (dated 2026-11-14). The choice stays with you and your agronomist.
         </p>
       </section>
     </div>

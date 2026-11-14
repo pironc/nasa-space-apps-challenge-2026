@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run check:press && tsc -b && vite build",
+    "build": "npm run check:press && npm run check:words && tsc -b && vite build",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc -b",
     "preview": "vite preview",
     "check:press": "! grep -rnE \"active:[^ \\\"']*(scale|translate|rotate|skew)\" src",
+    "check:words": "! grep -rnwiE \"alerts?|healthy|caused|recommend(ed|ation)?|profit|monoculture|you should|no problem|management problem|worst\" index.html src/App.tsx src/components/*.tsx src/lib/layers.ts",
     "check:data": "node --experimental-strip-types -e \"import('./src/lib/data.ts').then((m) => m.selfCheck())\""
   },
   "dependencies": {

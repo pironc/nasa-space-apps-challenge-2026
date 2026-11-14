@@ -1,7 +1,6 @@
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ReferenceLine, XAxis, YAxis } from "recharts"
 
 import { Key } from "@/components/seasons-tab"
-import { Badge } from "@/components/ui/badge"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -9,21 +8,32 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { Cause, FieldAnalysis } from "@/lib/analysis"
 import { FIRST_YEAR } from "@/lib/layers"
 
-const CAUSE: Record<Cause["type"], string> = {
-  water_deficit: "Short of water",
-  heat: "Heat at a sensitive stage",
-  frost: "Frost",
+// Names of what the regional record shows. Whether it explains the field is said under "Weather and this field".
+const SIGNAL: Record<Cause["type"], string> = {
+  water_deficit: "Unusually dry spell",
+  heat: "Unusual heat",
+  frost: "Frost in the regional record",
   wet_harvest: "Rain at harvest",
 }
+
+const DROUGHT = { drought: "Drought by this area's own record", severe: "Severe drought by this area's own record" }
 
 const mm = (v: number) => `${Math.round(v)} mm`
 const dayMonth = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })
 
 const Sub = ({ children }: { children: React.ReactNode }) => <div className="text-xs text-muted-foreground">{children}</div>
 
+const Evidence = ({ lines }: { lines: string[] }) => (
+  <ul className="flex list-disc flex-col gap-0.5 pl-4 text-xs text-pretty text-muted-foreground">
+    {lines.map((e) => (
+      <li key={e}>{e}</li>
+    ))}
+  </ul>
+)
+
 const rainConfig = { rainMayAug: { label: "May to August rain (mm)" } } satisfies ChartConfig
 
-/** A small mark above the bars of seasons flagged as short of water. */
+/** A small mark above the bars of the seasons listed in `climate.droughtYears`. */
 function DroughtMark({ x = 0, y = 0, width = 0, value }: { x?: number | string; y?: number | string; width?: number | string; value?: unknown }) {
   if (!value) return null
   const cx = +x + +width / 2
@@ -42,9 +52,12 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
   const season = climate.seasons.find((s) => s.year === year)
   const selectable = climate.seasons.filter((s) => s.year >= FIRST_YEAR).reverse()
   const veg = analysis.seasons.find((s) => s.year === year)
-  const weakCrop = veg?.verdicts.some((v) => v.type === "VEG_DEFICIT")
+  // A file without the newer fields gets no drought label and no named signal, only its numbers.
+  const droughtLabel = season && DROUGHT[season.drought as keyof typeof DROUGHT]
+  const robust = season?.causes.filter((c) => c.robust === true) ?? []
+  const sowingDependent = season?.causes.filter((c) => c.robust !== true).flatMap((c) => c.evidence) ?? []
   const drought = new Set(climate.droughtYears)
-  const rows = climate.seasons.map((s) => ({ ...s, drought: drought.has(s.year) }))
+  const rows = climate.seasons.map((s) => ({ ...s, marked: drought.has(s.year) }))
   const rainTop = Math.ceil(Math.max(normals.rainMayAug, ...rows.map((r) => r.rainMayAug)) / 100) * 100
 
   return (
@@ -113,11 +126,16 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
               <TableRow>
                 <TableCell>
                   Hydrothermal coefficient
-                  <Sub>Rain set against heat. Below 0.6 is a severe drought.</Sub>
+                  <Sub>Rain set against heat. Around 1 is enough moisture.</Sub>
                 </TableCell>
                 <TableCell>
                   {season.htc.toFixed(2)}
                   <Sub>{season.htcClass}</Sub>
+                  {season.htcRank != null && (
+                    <Sub>
+                      rank {season.htcRank} of {season.htcRankOf} <span className="whitespace-nowrap">(1 = driest)</span>
+                    </Sub>
+                  )}
                 </TableCell>
                 <TableCell>{normals.htc.toFixed(2)}</TableCell>
               </TableRow>
@@ -136,7 +154,10 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
               </TableRow>
               <TableRow>
                 <TableCell>First autumn frost</TableCell>
-                <TableCell>{season.firstAutumnFrost ? dayMonth(season.firstAutumnFrost) : "None recorded"}</TableCell>
+                <TableCell>
+                  {season.firstAutumnFrost ? dayMonth(season.firstAutumnFrost) : "None in the regional record"}
+                  <Sub>Frost pockets are not visible</Sub>
+                </TableCell>
                 <TableCell />
               </TableRow>
             </TableBody>
@@ -147,33 +168,42 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
       </section>
 
       {season && (
-        <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium">What the weather suggests for {year}</h3>
-          {season.causes.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <h3 className="text-sm font-medium">What stood out in the regional weather of {year}</h3>
+          {droughtLabel && (
+            <div>
+              <div className="font-medium">{droughtLabel}</div>
+              <Sub>
+                Its hydrothermal coefficient is in the lowest {season.drought === "severe" ? "tenth" : "fifth"} of this area's seasons. Dry
+                seasons are normal here, so only these are called a drought.
+              </Sub>
+            </div>
+          )}
+          {robust.length > 0 && (
             <ul className="flex flex-col gap-3">
-              {season.causes.map((c) => (
+              {robust.map((c) => (
                 <li key={c.type} className="flex flex-col gap-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{CAUSE[c.type]}</span>
-                    <Badge variant="outline" className="font-normal text-muted-foreground">
-                      {c.confidence} confidence
-                    </Badge>
-                  </div>
-                  <ul className="flex list-disc flex-col gap-0.5 pl-4 text-xs text-pretty text-muted-foreground">
-                    {c.evidence.map((e) => (
-                      <li key={e}>{e}</li>
-                    ))}
-                  </ul>
+                  <span className="font-medium">{SIGNAL[c.type]}</span>
+                  <Evidence lines={c.evidence} />
                 </li>
               ))}
             </ul>
-          ) : weakCrop ? (
-            <p className="text-pretty">
-              The field was clearly weaker than usual in {year}, but the regional weather record does not explain it. This needs local review:
-              sowing date, pests, disease, hail or a local dry patch are not visible here.
-            </p>
-          ) : (
-            <p className="text-pretty text-muted-foreground">Nothing in the regional weather record stands out as a cause of crop stress in {year}.</p>
+          )}
+          {sowingDependent.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <h4 className="font-medium">Depends on the sowing date</h4>
+              <Sub>These numbers change with the sowing date assumed, so they are listed without a reading.</Sub>
+              <Evidence lines={sowingDependent} />
+            </div>
+          )}
+          {!droughtLabel && season.causes.length === 0 && (
+            <p className="text-pretty text-muted-foreground">Nothing stood out in the regional weather record of {year}.</p>
+          )}
+          {veg?.explanation && (
+            <div className="flex flex-col gap-1 border-t pt-2.5">
+              <h4 className="text-xs font-medium text-muted-foreground">Weather and this field</h4>
+              <p className="text-pretty">{veg.explanation}</p>
+            </div>
           )}
         </section>
       )}
@@ -208,7 +238,7 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
                   hideIndicator
                   labelFormatter={(_, payload) => {
                     const r = payload[0]?.payload
-                    return r ? `${r.year}${r.drought ? ", drought season" : ""}` : null
+                    return r ? `${r.year}${r.marked ? ", drought by this area's own record" : ""}` : null
                   }}
                   formatter={(value) => (
                     <>
@@ -223,7 +253,7 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
               {rows.map((r) => (
                 <Cell key={r.year} fill={r.year === year ? "var(--chart-1)" : "var(--muted-foreground)"} fillOpacity={r.year === year ? 1 : 0.45} />
               ))}
-              <LabelList dataKey="drought" content={DroughtMark} />
+              <LabelList dataKey="marked" content={DroughtMark} />
             </Bar>
             <ReferenceLine y={normals.rainMayAug} stroke="var(--foreground)" strokeOpacity={0.6} />
           </BarChart>
@@ -235,14 +265,14 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
             <svg aria-hidden viewBox="0 0 7 6" className="h-1.5 w-[7px] shrink-0 fill-foreground">
               <path d="M0 0h7l-3.5 6z" />
             </svg>
-            Drought season (flagged short of water): {climate.droughtYears.length} of {climate.seasons.length}
+            Drought by this area's own record: {climate.droughtYears.length} of {climate.seasons.length} seasons
           </span>
         </div>
         <p className="text-pretty">{climate.trendNote}</p>
       </section>
 
       <p className="text-xs text-muted-foreground">
-        Regional weather from NASA POWER: one grid cell is about 55 x 42 km, so every field in it gets the same numbers.
+        Regional estimate for a grid cell of about 50 km (NASA POWER). Not a measurement on this field.
       </p>
     </div>
   )

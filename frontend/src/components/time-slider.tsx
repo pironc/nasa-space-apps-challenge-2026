@@ -42,7 +42,7 @@ export function TimeSlider({ date, onChange }: Props) {
         </Button>
         <div className="min-w-0 flex-1 leading-tight">
           <div className="truncate text-sm font-medium tabular-nums">{formatDate(shown)}</div>
-          <div className="truncate text-xs text-muted-foreground tabular-nums">16-day period to {formatDate(periodEnd)}</div>
+          <div className="text-xs text-pretty text-muted-foreground tabular-nums">16-day period to {formatDate(periodEnd)}</div>
         </div>
         <Select
           value={String(year)}
