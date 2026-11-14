@@ -1,17 +1,40 @@
 import { MousePointerClickIcon, UnplugIcon } from "lucide-react"
-import { useState } from "react"
+import { lazy, Suspense, useState } from "react"
 
-import { ClimateTab } from "@/components/climate-tab"
-import { SeasonsTab } from "@/components/seasons-tab"
+// The chart library is only needed on these two tabs: load it when one is opened.
+const ClimateTab = lazy(() =>
+  import("@/components/climate-tab").then((m) => ({ default: m.ClimateTab }))
+)
+const SeasonsTab = lazy(() =>
+  import("@/components/seasons-tab").then((m) => ({ default: m.SeasonsTab }))
+)
 import { StrategiesTab } from "@/components/strategies-tab"
 import { Button } from "@/components/ui/button"
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { AnalysisState, Declared } from "@/lib/data"
-import { formatHa, ROTATIONS, type RotationId, type SavedField } from "@/lib/fields"
+import {
+  formatHa,
+  ROTATIONS,
+  type RotationId,
+  type SavedField,
+} from "@/lib/fields"
 import { DEFAULT_PRIORITIES } from "@/lib/rotation"
 
 export const TABS = ["strategies", "seasons", "climate"] as const
@@ -71,7 +94,17 @@ type Props = {
   onDeclare: (year: number, use: Declared | null) => void
 }
 
-export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, onRotation, answers, onDeclare }: Props) {
+export function AnalysisPanel({
+  field,
+  state,
+  tab,
+  onTabChange,
+  year,
+  onYear,
+  onRotation,
+  answers,
+  onDeclare,
+}: Props) {
   // The farmer's priorities belong to the person, not the field: they survive tab and field changes.
   const [priorities, setPriorities] = useState(DEFAULT_PRIORITIES)
   const [drier, setDrier] = useState(0)
@@ -86,7 +119,10 @@ export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, on
             <MousePointerClickIcon />
           </EmptyMedia>
           <EmptyTitle>Select a field</EmptyTitle>
-          <EmptyDescription>Pick a demo field or one of your own, or click an outline on the map, to see how it has fared.</EmptyDescription>
+          <EmptyDescription>
+            Pick a demo field or one of your own, or click an outline on the
+            map, to see how it has fared.
+          </EmptyDescription>
         </EmptyHeader>
       </Empty>
     )
@@ -100,10 +136,10 @@ export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, on
     <Tabs
       value={tab}
       onValueChange={(v) => onTabChange(v as TabId)}
-      className="@container h-full gap-4 overflow-y-auto p-4 [scrollbar-gutter:stable]"
+      className="@container h-full [scrollbar-gutter:stable] gap-4 overflow-y-auto p-4"
     >
       {state.status !== "failed" && (
-        <TabsList className="w-full shrink-0 md:ml-auto md:w-72">
+        <TabsList className="w-full shrink-0 md:ml-auto md:w-72 md:max-w-full">
           <TabsTrigger value="strategies">Strategies</TabsTrigger>
           <TabsTrigger value="seasons">Seasons</TabsTrigger>
           <TabsTrigger value="climate">Climate</TabsTrigger>
@@ -111,23 +147,40 @@ export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, on
       )}
       <header className="flex flex-col gap-3 @2xl:flex-row @2xl:items-start @2xl:justify-between">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="text-lg leading-tight font-semibold tracking-tight text-balance [overflow-wrap:anywhere]">{field.name}</h2>
+          <h2 className="text-lg leading-tight font-semibold tracking-tight text-balance [overflow-wrap:anywhere]">
+            {field.name}
+          </h2>
           <p className="text-sm text-muted-foreground tabular-nums">
             {field.preset && `${field.preset.region} · `}
             {formatHa(field.areaHa)}
           </p>
-          {field.preset?.note && <p className="text-xs text-pretty text-muted-foreground">{field.preset.note}</p>}
+          {field.preset?.note && (
+            <p className="text-xs text-pretty text-muted-foreground">
+              {field.preset.note}
+            </p>
+          )}
           {soil && (
-            <p className="text-xs text-muted-foreground tabular-nums" title={soil.source}>
-              Modelled soil: clay {Math.round(soil.clayPct)}%, sand {Math.round(soil.sandPct)}%, pH {soil.ph.toFixed(1)} (not a field test)
+            <p
+              className="text-xs text-muted-foreground tabular-nums"
+              title={soil.source}
+            >
+              Modelled soil: clay {Math.round(soil.clayPct)}%, sand{" "}
+              {Math.round(soil.sandPct)}%, pH {soil.ph.toFixed(1)} (not a field
+              test)
             </p>
           )}
         </div>
         <div className="flex shrink-0 flex-col gap-1.5">
-          <Label htmlFor="panel-rotation" className="text-xs text-muted-foreground">
+          <Label
+            htmlFor="panel-rotation"
+            className="text-xs text-muted-foreground"
+          >
             Current rotation
           </Label>
-          <Select value={field.rotation} onValueChange={(v) => onRotation(v as RotationId)}>
+          <Select
+            value={field.rotation}
+            onValueChange={(v) => onRotation(v as RotationId)}
+          >
             <SelectTrigger id="panel-rotation" className="w-full @2xl:w-64">
               <SelectValue />
             </SelectTrigger>
@@ -149,13 +202,18 @@ export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, on
               <UnplugIcon />
             </EmptyMedia>
             <EmptyTitle className="text-sm">
-              {field.preset ? "This demo field did not load" : state.message ? "This field was not analysed" : "Live analysis is not available"}
+              {field.preset
+                ? "This demo field did not load"
+                : state.message
+                  ? "This field was not analysed"
+                  : "Live analysis is not available"}
             </EmptyTitle>
             <EmptyDescription className="text-xs">
               {field.preset
                 ? "Its data file could not be read. Check the connection and try again."
                 : // the service's own words when it answered; the fixed text only when it could not be reached
-                  state.message || "Live analysis needs the analysis service, which is not reachable. The demo fields work without it."}
+                  state.message ||
+                  "Live analysis needs the analysis service, which is not reachable. The demo fields work without it."}
             </EmptyDescription>
           </EmptyHeader>
           {state.canRetry && (
@@ -167,10 +225,15 @@ export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, on
           )}
         </Empty>
       ) : state.status === "loading" ? (
-        <div role="status" aria-label="Loading the analysis" className="flex flex-col gap-3">
+        <div
+          role="status"
+          aria-label="Loading the analysis"
+          className="flex flex-col gap-3"
+        >
           {!field.preset && (
             <p className="text-xs text-pretty text-muted-foreground">
-              Reading every season of satellite passes over this field. A field seen for the first time takes about 30 to 45 seconds.
+              Reading every season of satellite passes over this field. A field
+              seen for the first time takes about 30 to 45 seconds.
             </p>
           )}
           <TabSkeleton tab={tab} />
@@ -189,20 +252,34 @@ export function AnalysisPanel({ field, state, tab, onTabChange, year, onYear, on
             />
           </TabsContent>
           <TabsContent value="seasons">
-            <SeasonsTab
-              analysis={state.analysis}
-              year={year}
-              onYear={onYear}
-              compare={field.id in compare ? compare[field.id] : (field.preset?.demoYears[1] ?? null)}
-              onCompare={(y) => setCompare((prev) => ({ ...prev, [field.id]: y }))}
-              answers={answers}
-              onDeclare={onDeclare}
-              demo={!!field.preset}
-              refresh={state.refresh}
-            />
+            <Suspense fallback={<TabSkeleton tab="seasons" />}>
+              <SeasonsTab
+                analysis={state.analysis}
+                year={year}
+                onYear={onYear}
+                compare={
+                  field.id in compare
+                    ? compare[field.id]
+                    : (field.preset?.demoYears[1] ?? null)
+                }
+                onCompare={(y) =>
+                  setCompare((prev) => ({ ...prev, [field.id]: y }))
+                }
+                answers={answers}
+                onDeclare={onDeclare}
+                demo={!!field.preset}
+                refresh={state.refresh}
+              />
+            </Suspense>
           </TabsContent>
           <TabsContent value="climate">
-            <ClimateTab analysis={state.analysis} year={year} onYear={onYear} />
+            <Suspense fallback={<TabSkeleton tab="climate" />}>
+              <ClimateTab
+                analysis={state.analysis}
+                year={year}
+                onYear={onYear}
+              />
+            </Suspense>
           </TabsContent>
         </>
       )}

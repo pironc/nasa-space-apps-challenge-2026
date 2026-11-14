@@ -64,7 +64,7 @@
     --secondary: oklch(0.97 0 0);
     --secondary-foreground: oklch(0.205 0 0);
     --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
+    --muted-foreground: oklch(0.5 0 0); /* 4.5:1 or better on white, muted and the selected tint (#e9f0f9) */
     --accent: oklch(0.97 0 0);
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
@@ -139,6 +139,16 @@
     }
   html {
     @apply font-sans;
+    }
+  p, li, dd {
+    text-wrap: pretty;
+    }
+  /* Recharts makes charts keyboard-focusable; shadcn hides the outline. Keyboard users still need to see it. */
+  .recharts-surface:focus-visible,
+  [role="tabpanel"]:focus-visible {
+    outline: 2px solid var(--ring) !important;
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
     }
   .maplibregl-popup-content {
     @apply bg-transparent! shadow-none! p-0! rounded-none!;
