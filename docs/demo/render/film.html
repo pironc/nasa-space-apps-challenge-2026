@@ -24,6 +24,8 @@ html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0c162
 .ramp { display: flex; align-items: center; gap: 14px; justify-content: center; font-size: 24px; color: #a9bbd3; margin-top: 18px }
 .ramp div { display: flex; width: 520px; height: 16px; border-radius: 4px; overflow: hidden }
 .ramp div span { flex: 1 }
+/* Space Apps rule: SI-assisted video carries a visible watermark, on every frame */
+.ai { position: absolute; right: 28px; bottom: 22px; z-index: 9; padding: 8px 16px; border-radius: 999px; background: #0c1626d9; border: 1px solid #ffffff40; font-size: 22px; font-weight: 550; color: #e6edf6 }
 </style>
 <body>
 <div id="intro" class="scene"><div class="title">
@@ -78,6 +80,8 @@ html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0c162
   <div class="q" style="font-size:66px;line-height:1.15">Any field, anywhere: point farmers to the patches that need a visit, and help every farm choose a rotation that survives the next drought.</div>
   <div class="meta">Built on free NASA data: MODIS · POWER · SMAP · GIBS, with Copernicus Sentinel-2 (ESA)<br>Croppy · Team pironc · NASA Space Apps Challenge 2026</div>
 </div></div>
+
+<div class="ai">AI-assisted: app code and this video made with Claude Code (Anthropic)</div>
 
 <script>
 const RAMP = ["#d8c3a5","#e3d7a3","#e6e59a","#c7de86","#a2cf72","#78bb5e","#4fa34a","#2a8738","#0e6a27"]
