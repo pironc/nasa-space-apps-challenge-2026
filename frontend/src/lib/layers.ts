@@ -26,8 +26,10 @@ export type MapLayer = {
   attribution: string
   /** First year the layer has data for. */
   since: number
-  /** Changes every day (the time slider then steps day by day while playing). */
+  /** Changes every day. */
   daily?: boolean
+  /** Changes every 16 days: the map fades from one period to the next as the days pass. */
+  period?: boolean
   on: boolean
   opacity: number
 }
@@ -60,6 +62,7 @@ export const LAYERS: MapLayer[] = [
     source: "NASA MODIS Terra, 16-day",
     hint: "Regional greenness at 250 m, hidden when zoomed in on a field. It reads higher than the field chart (Sentinel-2).",
     tiles: (d) => gibs("MODIS_Terra_L3_NDVI_16Day", snapDate(d), 9, "png"),
+    period: true,
     maxzoom: 9,
     maxView: REGIONAL_MAX_VIEW,
     legend: `${LEGENDS}/MODIS_L3_NDVI_H.svg`,
@@ -190,6 +193,26 @@ export function snapDate(day: string): string {
   return dates.findLast((d) => d <= day) ?? dates[0]
 }
 
+/** The vegetation periods around a day: the one it falls in, the next, the one after, and how far into the first it is. */
+export function periodBlend(day: string) {
+  const a = snapDate(day)
+  const following = (p: string) => {
+    const y = +p.slice(0, 4)
+    return periodDates(y).find((x) => x > p) ?? `${y + 1}-01-01`
+  }
+  const b = following(a)
+  const c = following(b)
+  return {
+    a,
+    b,
+    c,
+    t: Math.min(
+      1,
+      (Date.parse(day) - Date.parse(a)) / (Date.parse(b) - Date.parse(a))
+    ),
+  }
+}
+
 /** Mid-July of a good harvest year: the grain belt at full canopy. */
 export const DEFAULT_DATE = "2024-07-11"
 
@@ -241,6 +264,16 @@ export function selfCheck() {
     snapDate("2021-01-01") !== "2021-01-01"
   )
     throw new Error("snapDate")
+  const pb = periodBlend("2021-07-20")
+  if (
+    pb.a !== "2021-07-12" ||
+    pb.b !== "2021-07-28" ||
+    pb.c !== "2021-08-13" ||
+    pb.t !== 0.5
+  )
+    throw new Error("periodBlend")
+  if (periodBlend("2021-12-25").b !== "2022-01-01")
+    throw new Error("periodBlend across the year")
   if (
     dayIndex("2021-01-01") !== 0 ||
     dayOf(2021, 364) !== "2021-12-31" ||

@@ -19,10 +19,9 @@ import {
   YEARS,
 } from "@/lib/layers"
 
-// Play waits for the next frame to finish loading, so the map never shows a half-drawn date,
-// but never faster than this and never stuck longer than the cap on a slow tile server.
-const MIN_STEP_MS = 650
-const MAX_WAIT_MS = 6000
+// Play waits for the next frame to finish loading, so the map never shows a half-drawn day,
+// but is never stuck longer than this on a slow tile server.
+const MAX_WAIT_MS = 4000
 const QUARTERS = [
   ["Jan", 0],
   ["Apr", 90],
@@ -30,15 +29,26 @@ const QUARTERS = [
   ["Oct", 273],
 ] as const
 
+const formatDay = (d: string) =>
+  new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  })
+
 type Props = {
   date: string
   onChange: (date: string) => void
-  /** The date play moves to next (the next day, period or field image, depending on the layers on). */
+  /** The date play moves to next. */
   step: (date: string) => string
+  /** Shortest time per play step. */
+  stepMs: number
   /** The next frame of every visible layer has loaded. */
   ready: boolean
-  /** The field image shown: its date, null when none is clear enough, undefined when not applicable. */
+  /** The live field image shown: its date, null when none is clear enough, undefined when not applicable. */
   scene: { date: string } | null | undefined
+  /** Saved field images blended for the day (demo years): which two, and how far between them. */
+  blend?: { a: string; b: string | null; t: number } | null
   /** Clear Sentinel-2 passes over the selected field, drawn as ticks on the track. */
   sceneDates: string[]
   /** The vegetation layer is on, so its 16-day period is worth naming. */
@@ -50,8 +60,10 @@ export function TimeSlider({
   date,
   onChange,
   step,
+  stepMs,
   ready,
   scene,
+  blend,
   sceneDates,
   vegetation,
 }: Props) {
@@ -63,9 +75,9 @@ export function TimeSlider({
   const [playing, setPlaying] = useState(false)
   const shown = draft === null ? date : dayOf(year, draft)
 
-  const live = useRef({ date, ready, step, onChange })
+  const live = useRef({ date, ready, step, onChange, stepMs })
   useEffect(() => {
-    live.current = { date, ready, step, onChange }
+    live.current = { date, ready, step, onChange, stepMs }
   })
   const since = useRef(0)
   useEffect(() => {
@@ -75,10 +87,10 @@ export function TimeSlider({
     if (!playing) return
     const t = setInterval(() => {
       const waited = performance.now() - since.current
-      const { date, ready, step, onChange } = live.current
-      if (waited >= MIN_STEP_MS && (ready || waited > MAX_WAIT_MS))
+      const { date, ready, step, onChange, stepMs } = live.current
+      if (waited >= stepMs && (ready || waited > MAX_WAIT_MS))
         onChange(step(date))
-    }, 100)
+    }, 30)
     return () => clearInterval(t)
   }, [playing])
 
@@ -100,6 +112,15 @@ export function TimeSlider({
           <div className="text-sm font-medium tabular-nums">
             {formatDate(shown)}
           </div>
+          {blend !== undefined && (
+            <div className="text-xs text-pretty text-muted-foreground tabular-nums">
+              {!blend
+                ? "No clear field image in the 30 days before"
+                : blend.b && blend.t > 0
+                  ? `Field image: ${formatDay(blend.a)}, fading into ${formatDay(blend.b)} (Sentinel-2)`
+                  : `Field image from ${formatDay(blend.a)} (Sentinel-2)`}
+            </div>
+          )}
           {scene !== undefined && (
             <div className="text-xs text-pretty text-muted-foreground tabular-nums">
               {scene

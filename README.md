@@ -48,6 +48,7 @@ npm run dev                               # http://localhost:5173, /api is proxi
 One container for both: `docker build -t fieldshift . && docker run -p 8088:8080 fieldshift`.
 
 Rebuild the demo fields from live data: `cd backend && uv run python scripts/build_presets.py`.
+Then save their field images for the animation (about 7.5 MB, demo years only): `uv run python scripts/build_frames.py`.
 
 No API keys are needed for anything.
 

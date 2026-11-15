@@ -6,8 +6,13 @@ type Props = {
   id: string
   /** The frame to show, or null for nothing. */
   tiles: string | null
+  /** A second frame faded in over the first by `blend` (0 to 1): the next period of a layer that changes every few days. */
+  blendTo?: string | null
+  blend?: number
   /** Frames to load in the background (the next dates), so stepping to them is instant. */
   next?: (string | null)[]
+  /** Opacity changes glide over this many ms. */
+  glide?: number
   visible: boolean
   opacity: number
   /** Native max zoom of the tiles (deeper zooms reuse them). */
@@ -34,7 +39,10 @@ const IDLE = "data:,"
 export function RasterLayer({
   id,
   tiles,
+  blendTo = null,
+  blend = 0,
   next = [],
+  glide = 0,
   visible,
   opacity,
   maxzoom,
@@ -94,10 +102,10 @@ export function RasterLayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, isLoaded, id])
 
-  const wanted = [tiles, ...next]
+  const wanted = [tiles, blendTo, ...next]
     .filter((u, i, all): u is string => !!u && all.indexOf(u) === i)
     .slice(0, SLOTS)
-  const key = `${tiles}|${wanted.join("|")}|${visible}|${opacity}`
+  const key = `${tiles}|${blendTo}|${blend.toFixed(3)}|${wanted.join("|")}|${visible}|${opacity}|${glide}`
 
   useEffect(() => {
     if (!map || !isLoaded || !map.getLayer(slot(0))) return
@@ -115,12 +123,23 @@ export function RasterLayer({
       cur[i] = u
       at.set(u, i)
     }
-    const shown = tiles ? at.get(tiles) : undefined
+    const a = tiles ? at.get(tiles) : undefined
+    const b = blendTo && blend > 0 ? at.get(blendTo) : undefined
+    // A crossfade: whichever of the two frames is drawn on top carries the change.
+    const strength = (i: number) => {
+      if (i === a) return b !== undefined && b < a ? 1 - blend : 1
+      if (i === b) return a === undefined || b > a ? blend : 1
+      return 0
+    }
     cur.forEach((u, i) => {
       const keep = visible && !!u && wanted.includes(u)
       // visibility none stops tile requests for layers that are switched off
       map.setLayoutProperty(slot(i), "visibility", keep ? "visible" : "none")
-      map.setPaintProperty(slot(i), "raster-opacity", i === shown ? opacity : 0)
+      map.setPaintProperty(slot(i), "raster-opacity-transition", {
+        duration: glide,
+        delay: 0,
+      })
+      map.setPaintProperty(slot(i), "raster-opacity", strength(i) * opacity)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, isLoaded, key])
