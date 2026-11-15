@@ -8,6 +8,9 @@ const ClimateTab = lazy(() =>
 const SeasonsTab = lazy(() =>
   import("@/components/seasons-tab").then((m) => ({ default: m.SeasonsTab }))
 )
+const StoryTab = lazy(() =>
+  import("@/components/story-tab").then((m) => ({ default: m.StoryTab }))
+)
 import { StrategiesTab } from "@/components/strategies-tab"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,31 +21,20 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { AnalysisState, Declared } from "@/lib/data"
-import {
-  formatHa,
-  ROTATIONS,
-  type RotationId,
-  type SavedField,
-} from "@/lib/fields"
+import { formatHa, type RotationId, type SavedField } from "@/lib/fields"
 import { DEFAULT_PRIORITIES } from "@/lib/rotation"
+import type { MapFocus } from "@/lib/story"
 
-export const TABS = ["strategies", "seasons", "climate"] as const
+/** In the order of the story: what happened, how the field grew, the weather, what to do. */
+export const TABS = ["story", "growth", "weather", "options"] as const
 export type TabId = (typeof TABS)[number]
 
 /** Placeholders in the shape of what is about to appear, so nothing jumps when it does. */
 function TabSkeleton({ tab }: { tab: TabId }) {
-  if (tab === "strategies")
+  if (tab === "options")
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-24 rounded-xl" />
@@ -53,7 +45,7 @@ function TabSkeleton({ tab }: { tab: TabId }) {
         </div>
       </div>
     )
-  if (tab === "seasons")
+  if (tab === "growth" || tab === "story")
     return (
       <div className="flex flex-col gap-5">
         <div className="grid grid-cols-3 gap-1 @xl:grid-cols-5 @3xl:grid-cols-9">
@@ -89,6 +81,8 @@ type Props = {
   year: number
   onYear: (year: number) => void
   onRotation: (rotation: RotationId) => void
+  /** Moves the map to the evidence a tab talks about. */
+  onFocus: (focus: MapFocus) => void
   /** Land use the user gave for this field in this session, by year. */
   answers: Record<string, Declared>
   onDeclare: (year: number, use: Declared | null) => void
@@ -102,6 +96,7 @@ export function AnalysisPanel({
   year,
   onYear,
   onRotation,
+  onFocus,
   answers,
   onDeclare,
 }: Props) {
@@ -128,8 +123,6 @@ export function AnalysisPanel({
     )
   }
 
-  const soil = state.status === "ready" ? state.analysis.soil : null
-
   return (
     // The tab strip comes first and keeps its width and its place at the right edge, so it does not move
     // under the pointer when the panel changes width between tabs.
@@ -139,13 +132,14 @@ export function AnalysisPanel({
       className="@container h-full [scrollbar-gutter:stable] gap-4 overflow-y-auto p-4"
     >
       {state.status !== "failed" && (
-        <TabsList className="w-full shrink-0 md:ml-auto md:w-72 md:max-w-full">
-          <TabsTrigger value="strategies">Strategies</TabsTrigger>
-          <TabsTrigger value="seasons">Seasons</TabsTrigger>
-          <TabsTrigger value="climate">Climate</TabsTrigger>
+        <TabsList className="w-full shrink-0 md:ml-auto md:w-96 md:max-w-full">
+          <TabsTrigger value="story">Story</TabsTrigger>
+          <TabsTrigger value="growth">Growth</TabsTrigger>
+          <TabsTrigger value="weather">Weather</TabsTrigger>
+          <TabsTrigger value="options">Options</TabsTrigger>
         </TabsList>
       )}
-      <header className="flex flex-col gap-3 @2xl:flex-row @2xl:items-start @2xl:justify-between">
+      <header>
         <div className="flex min-w-0 flex-col gap-1">
           <h2 className="text-lg leading-tight font-semibold tracking-tight text-balance [overflow-wrap:anywhere]">
             {field.name}
@@ -159,39 +153,6 @@ export function AnalysisPanel({
               {field.preset.note}
             </p>
           )}
-          {soil && (
-            <p
-              className="text-xs text-muted-foreground tabular-nums"
-              title={soil.source}
-            >
-              Modelled soil: clay {Math.round(soil.clayPct)}%, sand{" "}
-              {Math.round(soil.sandPct)}%, pH {soil.ph.toFixed(1)} (not a field
-              test)
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-col gap-1.5">
-          <Label
-            htmlFor="panel-rotation"
-            className="text-xs text-muted-foreground"
-          >
-            Current rotation
-          </Label>
-          <Select
-            value={field.rotation}
-            onValueChange={(v) => onRotation(v as RotationId)}
-          >
-            <SelectTrigger id="panel-rotation" className="w-full @2xl:w-64">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(ROTATIONS).map(([id, label]) => (
-                <SelectItem key={id} value={id}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
       </header>
 
@@ -240,10 +201,21 @@ export function AnalysisPanel({
         </div>
       ) : (
         <>
-          <TabsContent value="strategies">
+          <TabsContent value="story">
+            <Suspense fallback={<TabSkeleton tab="story" />}>
+              <StoryTab
+                analysis={state.analysis}
+                year={year}
+                onYear={onYear}
+                answers={answers}
+                demo={!!field.preset}
+              />
+            </Suspense>
+          </TabsContent>
+          <TabsContent value="options">
             <StrategiesTab
               analysis={state.analysis}
-              year={year}
+              onRotation={onRotation}
               declared={field.rotation}
               priorities={priorities}
               onPriorities={setPriorities}
@@ -251,8 +223,8 @@ export function AnalysisPanel({
               onDrier={setDrier}
             />
           </TabsContent>
-          <TabsContent value="seasons">
-            <Suspense fallback={<TabSkeleton tab="seasons" />}>
+          <TabsContent value="growth">
+            <Suspense fallback={<TabSkeleton tab="growth" />}>
               <SeasonsTab
                 analysis={state.analysis}
                 year={year}
@@ -269,15 +241,17 @@ export function AnalysisPanel({
                 onDeclare={onDeclare}
                 demo={!!field.preset}
                 refresh={state.refresh}
+                onFocus={onFocus}
               />
             </Suspense>
           </TabsContent>
-          <TabsContent value="climate">
-            <Suspense fallback={<TabSkeleton tab="climate" />}>
+          <TabsContent value="weather">
+            <Suspense fallback={<TabSkeleton tab="weather" />}>
               <ClimateTab
                 analysis={state.analysis}
                 year={year}
                 onYear={onYear}
+                onFocus={onFocus}
               />
             </Suspense>
           </TabsContent>

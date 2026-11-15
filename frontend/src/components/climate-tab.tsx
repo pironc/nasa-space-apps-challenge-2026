@@ -17,14 +17,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -36,6 +28,8 @@ import {
 import type { Cause, FieldAnalysis } from "@/lib/analysis"
 import { recordExtreme } from "@/lib/data"
 import { FIRST_YEAR } from "@/lib/layers"
+import { mapFocus, weatherHeadline, type MapFocus } from "@/lib/story"
+import { FocusButton, SeasonSelect } from "@/components/season-select"
 
 // Names of what the regional record shows. Whether it explains the field is said under "Weather and this field".
 const SIGNAL: Record<Cause["type"], string> = {
@@ -97,9 +91,11 @@ type Props = {
   analysis: FieldAnalysis
   year: number
   onYear: (year: number) => void
+  /** Moves the map to the evidence for the season. */
+  onFocus: (focus: MapFocus) => void
 }
 
-export function ClimateTab({ analysis, year, onYear }: Props) {
+export function ClimateTab({ analysis, year, onYear, onFocus }: Props) {
   const { climate } = analysis
   const { normals } = climate
   const season = climate.seasons.find((s) => s.year === year)
@@ -114,51 +110,29 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
     season?.causes
       .filter((c) => c.robust !== true)
       .flatMap((c) => c.evidence) ?? []
-  const drought = new Set(climate.droughtYears)
-  const rows = climate.seasons.map((s) => ({
-    ...s,
-    marked: drought.has(s.year),
-  }))
   const first = climate.seasons[0]?.year
   const extreme = season ? recordExtreme(season, first) : null
-  const rainTop =
-    Math.ceil(
-      Math.max(normals.rainMayAug, ...rows.map((r) => r.rainMayAug)) / 100
-    ) * 100
 
   return (
     <div className="flex flex-col gap-5">
       <section className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-medium">
-            The {year} season against the 1991 to 2020 normal
-          </h3>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="climate-year" className="sr-only">
-              Season
-            </Label>
-            <Select value={String(year)} onValueChange={(v) => onYear(+v)}>
-              <SelectTrigger
-                id="climate-year"
-                size="sm"
-                className="w-24 tabular-nums"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {selectable.map((s) => (
-                  <SelectItem
-                    key={s.year}
-                    value={String(s.year)}
-                    className="tabular-nums"
-                  >
-                    {s.year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm font-medium text-pretty">
+            {weatherHeadline(analysis, year)}
+          </p>
+          <SeasonSelect
+            years={selectable.map((s) => s.year)}
+            year={year}
+            onYear={onYear}
+          />
         </div>
+        <FocusButton
+          focus={mapFocus(analysis, year, "weather")}
+          onFocus={onFocus}
+        />
+        <h3 className="mt-2 text-sm font-medium">
+          Against the 1991 to 2020 normal
+        </h3>
         {season ? (
           <Table>
             <TableHeader>
@@ -312,139 +286,157 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
         </section>
       )}
 
-      <section className="flex flex-col gap-2">
-        <div className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">
-            May to August rain, every season since {climate.seasons[0]?.year}
-          </h3>
-          <p className="text-xs text-pretty text-muted-foreground">
-            Millimetres, with the 1991 to 2020 normal as the line. Click a bar
-            from {FIRST_YEAR} on to open that season.
-          </p>
-        </div>
-        {season && (
-          <p className="sr-only">
-            May to August rain in {year}: {mm(season.rainMayAug)}, against a
-            1991 to 2020 normal of {mm(normals.rainMayAug)}.
-          </p>
-        )}
-        <ChartContainer config={rainConfig} className="aspect-auto h-44 w-full">
-          <BarChart
-            accessibilityLayer
-            data={rows}
-            margin={{ left: 0, right: 8, top: 12, bottom: 0 }}
-            barCategoryGap={2}
-            onClick={(s) =>
-              s.activeLabel &&
-              +s.activeLabel >= FIRST_YEAR &&
-              onYear(+s.activeLabel)
-            }
-          >
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="year"
-              ticks={rows.map((r) => r.year).filter((y) => y % 5 === 0)}
-              tickLine={false}
-              axisLine={false}
-              className="tabular-nums"
-            />
-            <YAxis
-              domain={[0, rainTop]}
-              ticks={Array.from(
-                { length: rainTop / 100 + 1 },
-                (_, i) => i * 100
-              )}
-              width={36}
-              tickLine={false}
-              axisLine={false}
-              className="tabular-nums"
-            />
-            {/* a band behind the selected season, so it is marked by position as well as colour */}
-            <ReferenceArea
-              x1={year}
-              x2={year}
-              fill="var(--chart-1)"
-              fillOpacity={0.12}
-              stroke="none"
-            />
-            <ChartTooltip
-              cursor={false}
-              content={
-                <ChartTooltipContent
-                  hideIndicator
-                  labelFormatter={(_, payload) => {
-                    const r = payload[0]?.payload
-                    return r
-                      ? `${r.year}${r.marked ? ", drought by this area's own record" : ""}`
-                      : null
-                  }}
-                  formatter={(value) => (
-                    <>
-                      <span className="flex-1 text-muted-foreground">
-                        Rain, May to August
-                      </span>
-                      <span className="font-medium text-foreground tabular-nums">
-                        {mm(Number(value))}
-                      </span>
-                    </>
-                  )}
-                />
-              }
-            />
-            <Bar
-              dataKey="rainMayAug"
-              radius={[2, 2, 0, 0]}
-              isAnimationActive={false}
-            >
-              {rows.map((r) => (
-                <Cell
-                  key={r.year}
-                  className={
-                    r.year >= FIRST_YEAR ? "cursor-pointer" : undefined
-                  }
-                  fill={
-                    r.year === year
-                      ? "var(--chart-1)"
-                      : "var(--muted-foreground)"
-                  }
-                  fillOpacity={r.year === year ? 1 : 0.45}
-                />
-              ))}
-              <LabelList dataKey="marked" content={DroughtMark} />
-            </Bar>
-            <ReferenceLine
-              y={normals.rainMayAug}
-              stroke="var(--foreground)"
-              strokeOpacity={0.6}
-            />
-          </BarChart>
-        </ChartContainer>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
-          <Key swatch="h-3.5 w-2.5 border-x-2 border-chart-1/15 bg-chart-1">
-            {year}, with a band behind it
-          </Key>
-          <Key swatch="h-px w-4 bg-foreground/60">
-            Normal, {mm(normals.rainMayAug)}
-          </Key>
-          <span className="flex items-center gap-1.5">
-            <svg
-              aria-hidden
-              viewBox="0 0 7 6"
-              className="h-1.5 w-[7px] shrink-0 fill-foreground"
-            >
-              <path d="M0 0h7l-3.5 6z" />
-            </svg>
-            Drought by this area's own record: {climate.droughtYears.length} of{" "}
-            {climate.seasons.length} seasons
-          </span>
-        </div>
-        <p className="text-pretty">{climate.trendNote}</p>
-      </section>
-
       <p className="text-xs text-muted-foreground">
         Regional estimate for a grid cell of about 50 km (NASA POWER). Not a
         measurement on this field.
       </p>
     </div>
+  )
+}
+
+/** May to August rain every season since 1981, with the drought years marked. */
+export function RainRecord({
+  analysis,
+  year,
+  onYear,
+}: {
+  analysis: FieldAnalysis
+  year: number
+  onYear: (year: number) => void
+}) {
+  const { climate } = analysis
+  const { normals } = climate
+  const season = climate.seasons.find((s) => s.year === year)
+  const drought = new Set(climate.droughtYears)
+  const rows = climate.seasons.map((s) => ({
+    ...s,
+    marked: drought.has(s.year),
+  }))
+  const rainTop =
+    Math.ceil(
+      Math.max(normals.rainMayAug, ...rows.map((r) => r.rainMayAug)) / 100
+    ) * 100
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-sm font-medium">
+          May to August rain, every season since {climate.seasons[0]?.year}
+        </h3>
+        <p className="text-xs text-pretty text-muted-foreground">
+          Millimetres, with the 1991 to 2020 normal as the line. Click a bar
+          from {FIRST_YEAR} on to open that season.
+        </p>
+      </div>
+      {season && (
+        <p className="sr-only">
+          May to August rain in {year}: {mm(season.rainMayAug)}, against a 1991
+          to 2020 normal of {mm(normals.rainMayAug)}.
+        </p>
+      )}
+      <ChartContainer config={rainConfig} className="aspect-auto h-44 w-full">
+        <BarChart
+          accessibilityLayer
+          data={rows}
+          margin={{ left: 0, right: 8, top: 12, bottom: 0 }}
+          barCategoryGap={2}
+          onClick={(s) =>
+            s.activeLabel &&
+            +s.activeLabel >= FIRST_YEAR &&
+            onYear(+s.activeLabel)
+          }
+        >
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="year"
+            ticks={rows.map((r) => r.year).filter((y) => y % 5 === 0)}
+            tickLine={false}
+            axisLine={false}
+            className="tabular-nums"
+          />
+          <YAxis
+            domain={[0, rainTop]}
+            ticks={Array.from({ length: rainTop / 100 + 1 }, (_, i) => i * 100)}
+            width={36}
+            tickLine={false}
+            axisLine={false}
+            className="tabular-nums"
+          />
+          {/* a band behind the selected season, so it is marked by position as well as colour */}
+          <ReferenceArea
+            x1={year}
+            x2={year}
+            fill="var(--chart-1)"
+            fillOpacity={0.12}
+            stroke="none"
+          />
+          <ChartTooltip
+            cursor={false}
+            content={
+              <ChartTooltipContent
+                hideIndicator
+                labelFormatter={(_, payload) => {
+                  const r = payload[0]?.payload
+                  return r
+                    ? `${r.year}${r.marked ? ", drought by this area's own record" : ""}`
+                    : null
+                }}
+                formatter={(value) => (
+                  <>
+                    <span className="flex-1 text-muted-foreground">
+                      Rain, May to August
+                    </span>
+                    <span className="font-medium text-foreground tabular-nums">
+                      {mm(Number(value))}
+                    </span>
+                  </>
+                )}
+              />
+            }
+          />
+          <Bar
+            dataKey="rainMayAug"
+            radius={[2, 2, 0, 0]}
+            isAnimationActive={false}
+          >
+            {rows.map((r) => (
+              <Cell
+                key={r.year}
+                className={r.year >= FIRST_YEAR ? "cursor-pointer" : undefined}
+                fill={
+                  r.year === year ? "var(--chart-1)" : "var(--muted-foreground)"
+                }
+                fillOpacity={r.year === year ? 1 : 0.45}
+              />
+            ))}
+            <LabelList dataKey="marked" content={DroughtMark} />
+          </Bar>
+          <ReferenceLine
+            y={normals.rainMayAug}
+            stroke="var(--foreground)"
+            strokeOpacity={0.6}
+          />
+        </BarChart>
+      </ChartContainer>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
+        <Key swatch="h-3.5 w-2.5 border-x-2 border-chart-1/15 bg-chart-1">
+          {year}, with a band behind it
+        </Key>
+        <Key swatch="h-px w-4 bg-foreground/60">
+          Normal, {mm(normals.rainMayAug)}
+        </Key>
+        <span className="flex items-center gap-1.5">
+          <svg
+            aria-hidden
+            viewBox="0 0 7 6"
+            className="h-1.5 w-[7px] shrink-0 fill-foreground"
+          >
+            <path d="M0 0h7l-3.5 6z" />
+          </svg>
+          Drought by this area's own record: {climate.droughtYears.length} of{" "}
+          {climate.seasons.length} seasons
+        </span>
+      </div>
+      <p className="text-pretty">{climate.trendNote}</p>
+    </section>
   )
 }

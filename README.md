@@ -8,9 +8,10 @@ Field Shift looks at a crop field in the northern Kazakhstan grain belt the way 
 
 - **Map.** Pick what the map shows, day by day, over a yearly Sentinel-2 mosaic: the Sentinel-2 image of the latest clear pass over the field (10 m, every 2 to 5 days), field greenness (Sentinel-2 NDVI, 10 m, same passes), regional greenness (NASA MODIS NDVI, 250 m, every 8 days since 2001) or root-zone soil moisture (NASA SMAP, daily since 2016).
 - **Fields.** Three demo fields traced on satellite imagery, one per region. Draw your own field to analyse it live (needs the analysis service running).
-- **Strategies.** Three rotation options scored from a crop catalogue against the field's stress profile. Sliders for the farmer's priorities (save water, build soil, income now) and a "drier and hotter" what-if change the ranking in the browser.
-- **Seasons.** Greenness through each season since 2018 (Sentinel-2) against the field's own normal, with findings such as a peak well below normal or bare soil in mid-season, and the NASA MODIS record since 2000.
-- **Climate.** Each season's rain, heat, frost and moisture supply from NASA POWER against the 1991 to 2020 normal, and what the regional weather suggests about a poor season.
+- **Story.** Every season of the field in one line each (what grew, how it grew, what the weather did), with the NASA MODIS greenness record since 2000 and the rain record since 1981.
+- **Growth.** One season's greenness (Sentinel-2) against the field's own normal, with findings such as a peak well below normal or bare soil in mid-season. The map jumps to a clear pass in the season's greenest ten days.
+- **Weather.** One season's rain, heat, frost and moisture supply from NASA POWER against the 1991 to 2020 normal, and what the regional weather suggests about a poor season. The map shows soil moisture around the field on the season's hottest day.
+- **Options.** Three rotation options scored from a crop catalogue against the field's stress profile. Sliders for the farmer's priorities (save water, build soil, income now) and a "drier and hotter" what-if change the ranking in the browser.
 - **About the data.** A glossary, how satellite data differs from ground measurements, and a statement of uncertainty.
 
 ## How it works

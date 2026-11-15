@@ -197,7 +197,7 @@ export function TimeSlider({
         ))}
       </div>
       {ticks.length > 0 && (
-        <p className="text-xs text-muted-foreground">
+        <p className="hidden text-xs text-muted-foreground @md:block">
           The slider stops only on days with an image: the ticks.
         </p>
       )}

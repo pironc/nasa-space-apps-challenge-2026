@@ -368,7 +368,7 @@ const ratingsGap = (rot: Rot) => {
       : "")
   )
 }
-const stress = (v: number) =>
+export const stress = (v: number) =>
   v < 0.2 ? "small" : v < 0.45 ? "moderate" : "large"
 
 // Land use per season: the owner's declaration wins over the reading of the curve, and a season that is
