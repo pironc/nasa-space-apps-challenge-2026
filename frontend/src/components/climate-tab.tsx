@@ -130,7 +130,7 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
     <div className="flex flex-col gap-5">
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-base font-semibold">
+          <h3 className="text-sm font-medium">
             The {year} season against the 1991 to 2020 normal
           </h3>
           <div className="flex items-center gap-2">
@@ -261,7 +261,7 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
 
       {season && (
         <section className="flex flex-col gap-3">
-          <h3 className="text-base font-semibold">
+          <h3 className="text-sm font-medium">
             What stood out in the regional weather of {year}
           </h3>
           {droughtLabel && (
@@ -314,7 +314,7 @@ export function ClimateTab({ analysis, year, onYear }: Props) {
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-col gap-1">
-          <h3 className="text-base font-semibold">
+          <h3 className="text-sm font-medium">
             May to August rain, every season since {climate.seasons[0]?.year}
           </h3>
           <p className="text-xs text-pretty text-muted-foreground">

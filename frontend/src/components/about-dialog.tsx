@@ -65,7 +65,7 @@ export function AboutDialog({ year, obtained }: Props) {
         </DialogHeader>
         <div className="flex flex-col gap-5 text-sm">
           <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">How sure is this?</h3>
+            <h3 className="font-medium">How sure is this?</h3>
             <p className="text-pretty text-muted-foreground">
               Field greenness comes from Sentinel-2 images. Cloud can hide a field for weeks, so a season rests on roughly 12 to 30 usable images
               and its peak can be missed. Finding levels compare this field with its own other cropped seasons (at most eight); the thresholds are
@@ -76,7 +76,7 @@ export function AboutDialog({ year, obtained }: Props) {
             </p>
           </section>
           <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">Satellite data versus ground measurements</h3>
+            <h3 className="font-medium">Satellite data versus ground measurements</h3>
             <p className="text-pretty text-muted-foreground">
               A satellite measures reflected light, not the crop. NDVI tells how much green leaf covers the ground. It does not measure yield,
               grain quality, soil moisture, nutrients or disease, and it cannot tell crop from weeds: a weedy field can look as green as a good
@@ -88,7 +88,7 @@ export function AboutDialog({ year, obtained }: Props) {
             </p>
           </section>
           <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">Glossary</h3>
+            <h3 className="font-medium">Glossary</h3>
             <dl className="flex flex-col gap-2">
               {GLOSSARY.map(([term, meaning]) => (
                 <div key={term}>
@@ -99,7 +99,7 @@ export function AboutDialog({ year, obtained }: Props) {
             </dl>
           </section>
           <section className="flex flex-col gap-2">
-            <h3 className="text-base font-semibold">Data credits</h3>
+            <h3 className="font-medium">Data credits</h3>
             <ul className="flex flex-col gap-2 text-xs text-pretty text-muted-foreground">
               <li>
                 The data was obtained from National Aeronautics and Space Administration (NASA) Langley Research Center's Prediction Of Worldwide
