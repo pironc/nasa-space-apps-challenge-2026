@@ -68,6 +68,8 @@ export function App() {
   const fieldAnswers = (selectedId && answers[selectedId]) || NO_ANSWERS
   const analysis = useAnalysis(selected, fieldAnswers)
   const year = +date.slice(0, 4)
+  // Gliding between days suits play; scrubbing by hand must follow the pointer with no lag.
+  const [playing, setPlaying] = useState(false)
   // The map comes first: the analysis panel is narrow unless asked wider, and can be hidden.
   const [panelMode, setPanelMode] = useState<"narrow" | "wide" | "hidden">(
     "narrow"
@@ -263,7 +265,7 @@ export function App() {
             nextScenes={nextScenes}
             frames={frames}
             blend={blend}
-            glide={STEP_MS}
+            glide={playing ? STEP_MS : 0}
             onReady={onReady}
             layers={layers}
             fields={fields}
@@ -297,6 +299,7 @@ export function App() {
               blend={framed && selected && layers.scene.on ? blend : undefined}
               sceneDates={layers.scene.on ? scenes.map((s) => s.date) : []}
               vegetation={layers.ndvi.on}
+              onPlaying={setPlaying}
             />
           </div>
           {/* Panel controls under the zoom buttons, out of the way of the drawing toolbar. */}
