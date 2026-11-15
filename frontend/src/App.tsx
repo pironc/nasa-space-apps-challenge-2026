@@ -34,6 +34,8 @@ import {
   DEFAULT_DATE,
   defaultLayerState,
   scenePass,
+  snapTo,
+  periodDates,
   viewOf,
   VIEWS,
   withView,
@@ -41,8 +43,10 @@ import {
   type LayerState,
 } from "@/lib/layers"
 
-/** One play step: a day of the season every this many ms, once that day's images have loaded. */
+/** One play step: a day every this many ms, once that day's images have loaded. */
 const STEP_MS = 180
+/** When play goes from one satellite image to the next, each stays long enough to look at. */
+const SPARSE_STEP_MS = 600
 
 const query = new URLSearchParams(location.search)
 const tabOf = (q: URLSearchParams) =>
@@ -53,7 +57,8 @@ export function App() {
   const isMobile = useIsMobile()
   const { fields: saved, add, patch, remove, restore } = useSavedFields()
   const [presets, setPresets] = useState<SavedField[]>([])
-  const [date, setDate] = useState(() =>
+  // The day asked for; the day shown is moved to the nearest day with data for the layers shown.
+  const [day, setDate] = useState(() =>
     clampDay(query.get("date") ?? DEFAULT_DATE)
   )
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -69,13 +74,13 @@ export function App() {
   const selected = fields.find((f) => f.id === selectedId)
   const fieldAnswers = (selectedId && answers[selectedId]) || NO_ANSWERS
   const analysis = useAnalysis(selected, fieldAnswers)
-  const year = +date.slice(0, 4)
+  const year = +day.slice(0, 4)
   // The map comes first: the analysis panel is narrow unless asked wider, and can be hidden.
   const [panelMode, setPanelMode] = useState<"narrow" | "wide" | "hidden">(
     "narrow"
   )
 
-  // Clear Sentinel-2 passes over the selected field: the map fades from one to the next, day by day.
+  // Clear Sentinel-2 passes over the selected field.
   const scenes = useMemo(
     () => (analysis.status === "ready" ? (analysis.analysis.scenes ?? []) : []),
     [analysis]
@@ -85,19 +90,47 @@ export function App() {
     () => Object.fromEntries(scenes.map((s) => [s.date, s])),
     [scenes]
   )
-  // Play moves one day at a time and loops within the year.
-  const step = useCallback((d: string) => {
-    const n = addDays(d, 1)
-    return n.startsWith(d.slice(0, 4)) && clampDay(n) === n
-      ? n
-      : `${d.slice(0, 4)}-01-01`
-  }, [])
+  const showScene =
+    !!selected && (layers.scene.on || layers.greenness.on) && year >= 2018
+  // The days with real data for the layers shown: each clear pass, each new vegetation composite.
+  // Null when a daily layer is on (or nothing dated is): then every day has data.
+  const dataDays = useCallback(
+    (y: number) => {
+      if (layers.soil.on) return null
+      const days = new Set<string>()
+      if (showScene)
+        for (const d of sceneDates) if (d.startsWith(String(y))) days.add(d)
+      if (layers.ndvi.on) for (const d of periodDates(y)) days.add(d)
+      return days.size ? [...days].sort() : null
+    },
+    [layers.soil.on, layers.ndvi.on, showScene, sceneDates]
+  )
+  /** Any day moved to a day with data, back to the latest before it unless asked forward. */
+  const snap = useCallback(
+    (d: string, dir: -1 | 0 | 1 = 0) => {
+      const days = dataDays(+d.slice(0, 4))
+      return days ? snapTo(days, d, dir) : d
+    },
+    [dataDays]
+  )
+  // Play moves to the next day with data and loops within the year.
+  const step = useCallback(
+    (d: string) => {
+      const days = dataDays(+d.slice(0, 4))
+      if (days) return days.find((x) => x > d) ?? days[0]
+      const n = addDays(d, 1)
+      return n.startsWith(d.slice(0, 4)) && clampDay(n) === n
+        ? n
+        : `${d.slice(0, 4)}-01-01`
+    },
+    [dataDays]
+  )
+  // A layer switch, a new field or a shared link can land between two days with data: show the one before.
+  const date = snap(day)
   const nextDates = useMemo(() => {
     const a = step(date)
     return [a, step(a)]
   }, [date, step])
-  const showScene =
-    !!selected && (layers.scene.on || layers.greenness.on) && year >= 2018
   const pass = showScene ? scenePass(sceneDates, date) : undefined
   // Play waits until the next frame of every visible layer has loaded.
   const [readyById, setReadyById] = useState<Record<string, boolean>>({})
@@ -308,11 +341,12 @@ export function App() {
             <TimeSlider
               date={date}
               onChange={setDate}
+              snap={snap}
               step={step}
-              stepMs={STEP_MS}
+              stepMs={dataDays(year) ? SPARSE_STEP_MS : STEP_MS}
               ready={ready}
               pass={pass}
-              sceneDates={showScene ? sceneDates : []}
+              ticks={dataDays(year) ?? []}
               vegetation={layers.ndvi.on}
             />
           </div>

@@ -194,6 +194,15 @@ export function scenePass(dates: string[], day: string) {
   return { date: dates[i], next: dates[i + 1] ?? null }
 }
 
+/**
+ * A day moved to the nearest day in `days` (sorted): forward to the first on or after it (dir 1),
+ * otherwise back to the latest on or before it, or the first day when there is none before.
+ */
+export function snapTo(days: string[], day: string, dir: -1 | 0 | 1 = 0) {
+  if (dir > 0) return days.find((d) => d >= day) ?? days.at(-1)!
+  return days.findLast((d) => d <= day) ?? days[0]
+}
+
 /** The map's main view, picked on the map: one dated layer over the yearly mosaic. */
 export const VIEWS = [
   { id: "imagery", label: "Imagery", short: "Imagery", layer: "scene" },
@@ -409,5 +418,14 @@ export function selfCheck() {
     throw new Error("withView")
   if (viewOf({ ...field, ndvi: { on: true, opacity: 1 } }) !== "")
     throw new Error("mixed layers match no view")
+  const days = ["2021-06-05", "2021-06-10", "2021-06-20"]
+  if (
+    snapTo(days, "2021-06-07") !== "2021-06-05" ||
+    snapTo(days, "2021-06-07", 1) !== "2021-06-10" ||
+    snapTo(days, "2021-06-07", -1) !== "2021-06-05" ||
+    snapTo(days, "2021-05-01") !== "2021-06-05" ||
+    snapTo(days, "2021-07-01", 1) !== "2021-06-20"
+  )
+    throw new Error("snapTo")
   console.log("layers self-check passed")
 }

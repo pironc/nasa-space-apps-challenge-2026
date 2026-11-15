@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import {
+  addDays,
+  clampDay,
   dayIndex,
   dayOf,
   daysIn,
@@ -29,6 +31,15 @@ const QUARTERS = [
   ["Oct", 273],
 ] as const
 
+const STEP_KEYS: Record<string, 1 | -1> = {
+  ArrowRight: 1,
+  ArrowUp: 1,
+  PageUp: 1,
+  ArrowLeft: -1,
+  ArrowDown: -1,
+  PageDown: -1,
+}
+
 const formatDay = (d: string) =>
   new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", {
     day: "numeric",
@@ -39,6 +50,8 @@ const formatDay = (d: string) =>
 type Props = {
   date: string
   onChange: (date: string) => void
+  /** A day moved to a day with data: back to the latest before it, or forward (dir 1). */
+  snap: (date: string, dir?: -1 | 0 | 1) => string
   /** The date play moves to next. */
   step: (date: string) => string
   /** Shortest time per play step. */
@@ -47,30 +60,29 @@ type Props = {
   ready: boolean
   /** The Sentinel-2 pass shown: null when none is recent enough, undefined when the layer is not shown. */
   pass?: { date: string } | null
-  /** Clear Sentinel-2 passes over the selected field, drawn as ticks on the track. */
-  sceneDates: string[]
+  /** The days with data this year, drawn as ticks on the track; empty when every day has data. */
+  ticks: string[]
   /** The vegetation layer is on, so its composite is worth naming. */
   vegetation: boolean
 }
 
-/** Moves through one year day by day; each layer shows what exists for that day. */
+/** Moves through one year, stopping only on days the layers shown have data for. */
 export function TimeSlider({
   date,
   onChange,
+  snap,
   step,
   stepMs,
   ready,
   pass,
-  sceneDates,
+  ticks,
   vegetation,
 }: Props) {
   const year = +date.slice(0, 4)
   const days = daysIn(year)
   const index = dayIndex(date)
-  // While dragging, the map follows every move.
-  const [draft, setDraft] = useState<number | null>(null)
   const [playing, setPlaying] = useState(false)
-  const shown = draft === null ? date : dayOf(year, draft)
+  const shown = date
 
   const live = useRef({ date, ready, step, onChange, stepMs })
   useEffect(() => {
@@ -91,8 +103,6 @@ export function TimeSlider({
     return () => clearInterval(t)
   }, [playing])
 
-  const ticks = sceneDates.filter((d) => d.startsWith(String(year)))
-
   return (
     <div className="flex flex-col gap-2 rounded-xl border bg-background/95 p-4 shadow-md">
       <div className="flex flex-wrap items-center gap-2">
@@ -109,7 +119,8 @@ export function TimeSlider({
           <div className="text-sm font-medium tabular-nums">
             {formatDate(shown)}
           </div>
-          {pass !== undefined && (
+          {/* only when another layer's day is shown: otherwise the date is the image's own */}
+          {pass !== undefined && pass?.date !== shown && (
             <div className="text-xs text-pretty text-muted-foreground tabular-nums">
               {pass
                 ? `Field image from ${formatDay(pass.date)} (Sentinel-2)`
@@ -125,7 +136,7 @@ export function TimeSlider({
         </div>
         <Select
           value={String(year)}
-          onValueChange={(y) => onChange(dayOf(+y, index))}
+          onValueChange={(y) => onChange(snap(dayOf(+y, index)))}
         >
           <SelectTrigger
             aria-label="Year"
@@ -143,7 +154,7 @@ export function TimeSlider({
         </Select>
       </div>
       <div className="flex flex-col gap-1">
-        {/* one tick per clear Sentinel-2 pass over the field this year */}
+        {/* one tick per day with data this year */}
         {ticks.length > 0 && (
           <div className="relative h-1.5" aria-hidden>
             {ticks.map((d) => (
@@ -160,15 +171,17 @@ export function TimeSlider({
           min={0}
           max={days - 1}
           step={1}
-          value={[draft ?? index]}
-          onValueChange={([v]) => {
-            // the map follows every move: each day is a change of opacity, not a download
-            setDraft(v)
-            onChange(dayOf(year, v))
-          }}
-          onValueCommit={([v]) => {
-            setDraft(null)
-            onChange(dayOf(year, v))
+          value={[index]}
+          // dragging shows the latest image at or before the pointer
+          onValueChange={([v]) => onChange(snap(dayOf(year, v)))}
+          // arrow and page keys go to the next or previous day with data, never past the year
+          onKeyDown={(e) => {
+            const dir = STEP_KEYS[e.key]
+            if (!dir) return
+            e.preventDefault()
+            const n = addDays(date, dir)
+            if (n.startsWith(String(year)) && clampDay(n) === n)
+              onChange(snap(n, dir))
           }}
         />
       </div>
@@ -185,7 +198,7 @@ export function TimeSlider({
       </div>
       {ticks.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Ticks: days a satellite saw the field clearly.
+          The slider stops only on days with an image: the ticks.
         </p>
       )}
     </div>
