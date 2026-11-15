@@ -163,16 +163,21 @@ export function App() {
 
   // Selection, date and tab live in the URL so a view can be shared or reloaded.
   // Going from one field to another adds a history entry, so Back returns to the previous field.
+  // Written once the date stops moving: browsers throttle history updates (Safari allows about 100
+  // per 30 s), and scrubbing day by day would hit that limit.
   useEffect(() => {
-    const q = new URLSearchParams({ date })
-    if (selectedId) q.set("field", selectedId)
-    if (tab !== "strategies") q.set("tab", tab)
-    const shown = new URLSearchParams(location.search).get("field")
-    history[shown && shown !== selectedId ? "pushState" : "replaceState"](
-      null,
-      "",
-      `?${q}`
-    )
+    const t = setTimeout(() => {
+      const q = new URLSearchParams({ date })
+      if (selectedId) q.set("field", selectedId)
+      if (tab !== "strategies") q.set("tab", tab)
+      const shown = new URLSearchParams(location.search).get("field")
+      history[shown && shown !== selectedId ? "pushState" : "replaceState"](
+        null,
+        "",
+        `?${q}`
+      )
+    }, 300)
+    return () => clearTimeout(t)
   }, [date, selectedId, tab])
 
   useEffect(() => {
