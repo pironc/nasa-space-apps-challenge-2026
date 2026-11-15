@@ -82,7 +82,7 @@ Frontend: React, Vite, TypeScript, Tailwind CSS, shadcn/ui (Radix UI), mapcn, Ma
 - The team chose the challenge, the region and the product direction, and made the design decisions.
 - The code, the research notes in `docs/research/` and the plan review were written with an AI coding assistant (Claude Code, Anthropic) under the team's direction. The notes mark what was verified by running it and what is unverified recall.
 - No AI model runs inside the app. All findings and rotation scores come from fixed rules.
-- No AI-generated images, video or audio are used.
+- No AI-generated images, video or audio are used. The demo video (`docs/demo/croppy-demo.webm`) is a screen capture of the app with text cards, put together by a script written with the AI assistant.
 
 ## Repository
 
