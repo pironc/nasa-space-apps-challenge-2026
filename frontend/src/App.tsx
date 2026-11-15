@@ -33,7 +33,7 @@ import {
   clampDay,
   DEFAULT_DATE,
   defaultLayerState,
-  sceneBlend,
+  scenePass,
   viewOf,
   VIEWS,
   withView,
@@ -41,7 +41,7 @@ import {
   type LayerState,
 } from "@/lib/layers"
 
-/** One play step: a day of the season every this many ms, with the map gliding between days. */
+/** One play step: a day of the season every this many ms, once that day's images have loaded. */
 const STEP_MS = 180
 
 const query = new URLSearchParams(location.search)
@@ -70,8 +70,6 @@ export function App() {
   const fieldAnswers = (selectedId && answers[selectedId]) || NO_ANSWERS
   const analysis = useAnalysis(selected, fieldAnswers)
   const year = +date.slice(0, 4)
-  // Gliding between days suits play; scrubbing by hand must follow the pointer with no lag.
-  const [playing, setPlaying] = useState(false)
   // The map comes first: the analysis panel is narrow unless asked wider, and can be hidden.
   const [panelMode, setPanelMode] = useState<"narrow" | "wide" | "hidden">(
     "narrow"
@@ -99,9 +97,7 @@ export function App() {
     return [a, step(a)]
   }, [date, step])
   const showScene = !!selected && layers.scene.on && year >= 2018
-  const blend = showScene ? sceneBlend(sceneDates, date) : undefined
-  // the pass after the two being blended, loaded ahead so the next fade starts at once
-  const after = blend?.b && sceneDates[sceneDates.indexOf(blend.b) + 1]
+  const pass = showScene ? scenePass(sceneDates, date) : undefined
   // Play waits until the next frame of every visible layer has loaded.
   const [readyById, setReadyById] = useState<Record<string, boolean>>({})
   const onReady = useCallback(
@@ -256,17 +252,14 @@ export function App() {
             date={date}
             nextDates={nextDates}
             scene={
-              blend
+              pass
                 ? {
-                    a: itemOf[blend.a],
-                    b: blend.b && itemOf[blend.b],
-                    t: blend.t,
-                    next: after ? itemOf[after] : null,
+                    item: itemOf[pass.date],
+                    next: pass.next && itemOf[pass.next],
                   }
                 : null
             }
             scenes={scenes}
-            glide={playing ? STEP_MS : 0}
             onReady={onReady}
             layers={layers}
             fields={fields}
@@ -317,10 +310,9 @@ export function App() {
               step={step}
               stepMs={STEP_MS}
               ready={ready}
-              blend={blend}
+              pass={pass}
               sceneDates={layers.scene.on ? sceneDates : []}
               vegetation={layers.ndvi.on}
-              onPlaying={setPlaying}
             />
           </div>
           {/* Panel controls under the zoom buttons, out of the way of the drawing toolbar. */}

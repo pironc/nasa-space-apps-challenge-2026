@@ -102,7 +102,7 @@ export function Prefetch({
           continue
         const y = +date.slice(0, 4)
         const days = l.period
-          ? // the whole year, and the periods either side of New Year that blending reaches
+          ? // the whole year, and the composites either side of New Year
             [
               ...periodDates(y),
               ...periodDates(y + 1).slice(0, 2),

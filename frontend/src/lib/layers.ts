@@ -148,26 +148,18 @@ export const sceneTiles = (item: string) =>
     nodata: "0",
   })
 
-/** The image to show on a day: one clear pass `a` at full strength, the next pass `b` over it at `t` (0 to 1). */
-export type Blend = { a: string; b: string | null; t: number }
-
-/** No fading across gaps longer than this: the ground can change too much between two passes. */
-const MAX_GAP_DAYS = 30
+/** A pass older than this is not shown: the ground can have changed too much since. */
+const MAX_AGE_DAYS = 30
 
 /**
- * The passes to show on a day: the latest on or before it, faded towards the next one in proportion
- * to the days between them. Null when no pass is close enough.
+ * The pass to show on a day: the latest on or before it, and the one after it (to load ahead).
+ * Null when no pass is recent enough.
  */
-export function sceneBlend(dates: string[], day: string): Blend | null {
+export function scenePass(dates: string[], day: string) {
   const i = dates.findLastIndex((d) => d <= day)
-  if (i < 0) return null
-  const a = dates[i]
-  const next = dates[i + 1] ?? null
-  const span = next ? (Date.parse(next) - Date.parse(a)) / DAY : Infinity
-  const since = (Date.parse(day) - Date.parse(a)) / DAY
-  if (span > MAX_GAP_DAYS)
-    return since <= MAX_GAP_DAYS ? { a, b: null, t: 0 } : null
-  return { a, b: next, t: since / span }
+  if (i < 0 || (Date.parse(day) - Date.parse(dates[i])) / DAY > MAX_AGE_DAYS)
+    return null
+  return { date: dates[i], next: dates[i + 1] ?? null }
 }
 
 /** The map's main view, picked on the map: the Sentinel-2 image of the day, or one NASA layer, over the yearly mosaic. */
@@ -260,24 +252,11 @@ export function snapDate(day: string): string {
   return dates.findLast((d) => d <= day) ?? dates[0]
 }
 
-/** The vegetation periods around a day: the one it falls in, the next, the one after, and how far into the first it is. */
-export function periodBlend(day: string) {
-  const a = snapDate(day)
-  const following = (p: string) => {
-    const y = +p.slice(0, 4)
-    return periodDates(y).find((x) => x > p) ?? `${y + 1}-01-01`
-  }
-  const b = following(a)
-  const c = following(b)
-  return {
-    a,
-    b,
-    c,
-    t: Math.min(
-      1,
-      (Date.parse(day) - Date.parse(a)) / (Date.parse(b) - Date.parse(a))
-    ),
-  }
+/** The vegetation composite after the one shown on a day, to load ahead. */
+export function nextPeriod(day: string) {
+  const p = snapDate(day)
+  const y = +p.slice(0, 4)
+  return periodDates(y).find((x) => x > p) ?? `${y + 1}-01-01`
 }
 
 /** Mid-July of a good harvest year: the grain belt at full canopy. */
@@ -351,16 +330,9 @@ export function selfCheck() {
     periodDates(2021).at(-1) !== "2021-12-27"
   )
     throw new Error("composites per year")
-  const pb = periodBlend("2021-07-24")
-  if (
-    pb.a !== "2021-07-20" ||
-    pb.b !== "2021-07-28" ||
-    pb.c !== "2021-08-05" ||
-    pb.t !== 0.5
-  )
-    throw new Error("periodBlend")
-  if (periodBlend("2021-12-29").b !== "2022-01-01")
-    throw new Error("periodBlend across the year")
+  if (nextPeriod("2021-07-24") !== "2021-07-28") throw new Error("nextPeriod")
+  if (nextPeriod("2021-12-29") !== "2022-01-01")
+    throw new Error("nextPeriod across the year")
   if (
     dayIndex("2021-01-01") !== 0 ||
     dayOf(2021, 364) !== "2021-12-31" ||
@@ -375,16 +347,16 @@ export function selfCheck() {
   if (!sceneTiles("X").includes("item=X") || sceneTiles("X").includes("+"))
     throw new Error("sceneTiles")
   const dates = ["2021-07-10", "2021-07-20", "2021-09-30"]
-  const at = (d: string) => JSON.stringify(sceneBlend(dates, d))
+  const at = (d: string) => JSON.stringify(scenePass(dates, d))
   if (at("2021-07-01") !== "null") throw new Error("before the first pass")
   if (
     at("2021-07-15") !==
-    JSON.stringify({ a: "2021-07-10", b: "2021-07-20", t: 0.5 })
+    JSON.stringify({ date: "2021-07-10", next: "2021-07-20" })
   )
-    throw new Error("halfway blend")
-  if (at("2021-07-25") !== JSON.stringify({ a: "2021-07-20", b: null, t: 0 }))
-    throw new Error("no blend over a long gap")
-  if (at("2021-09-01") !== "null") throw new Error("too old to show")
+    throw new Error("latest pass")
+  if (at("2021-08-25") !== "null") throw new Error("too old to show")
+  if (at("2021-09-30") !== JSON.stringify({ date: "2021-09-30", next: null }))
+    throw new Error("last pass")
   const base = defaultLayerState()
   if (viewOf(base) !== "imagery") throw new Error("default view")
   const rain = withView(base, "rain")

@@ -31,7 +31,7 @@ import {
 import {
   BASEMAP,
   LAYERS,
-  periodBlend,
+  nextPeriod,
   sceneTiles,
   type LayerState,
 } from "@/lib/layers"
@@ -287,12 +287,10 @@ type Props = {
   date: string
   /** The dates play will step to next: their frames load in the background. */
   nextDates: string[]
-  /** Sentinel-2 scenes for the day: pass `a`, pass `b` faded over it at `t`, and the pass after, loading ahead. */
-  scene: { a: string; b: string | null; t: number; next: string | null } | null
+  /** Sentinel-2 item ids for the day: the pass shown, and the one after it, loading ahead. */
+  scene: { item: string; next: string | null } | null
   /** Every clear pass over the selected field, fetched ahead for the area in view. */
   scenes: { date: string; item: string }[]
-  /** Opacity changes glide over this many ms: the length of one play step. */
-  glide: number
   onReady: (id: string, ready: boolean) => void
   layers: LayerState
   fields: SavedField[]
@@ -307,7 +305,6 @@ export function FieldMap({
   nextDates,
   scene,
   scenes,
-  glide,
   onReady,
   layers,
   fields,
@@ -350,41 +347,26 @@ export function FieldMap({
           attribution: l.attribution,
           onReady,
         }
-        if (l.period) {
-          // fades from one vegetation composite to the next as the days pass
-          const p = periodBlend(date)
-          return (
-            <RasterLayer
-              key={l.id}
-              {...common}
-              tiles={l.tiles(p.a)}
-              blendTo={l.tiles(p.b)}
-              blend={p.t}
-              next={[l.tiles(p.c)]}
-              glide={glide}
-            />
-          )
-        }
         return (
           <RasterLayer
             key={l.id}
             {...common}
             tiles={l.tiles(date)}
-            next={nextDates.map((d) => l.tiles(d))}
-            glide={l.daily ? glide : 0}
+            next={
+              l.period
+                ? [l.tiles(nextPeriod(date))]
+                : nextDates.map((d) => l.tiles(d))
+            }
           />
         )
       })}
-      {/* The whole view as Sentinel-2 saw it on the clear passes over the selected field, fading
-          from one pass to the next as the days go by. Tiles are rendered live by the Planetary Computer. */}
+      {/* The whole view as Sentinel-2 saw it on the latest clear pass over the selected field.
+          Tiles are rendered live by the Planetary Computer. */}
       {selectedField && (
         <RasterLayer
           id="scene"
-          tiles={scene && sceneTiles(scene.a)}
-          blendTo={scene?.b ? sceneTiles(scene.b) : null}
-          blend={scene?.t ?? 0}
+          tiles={scene && sceneTiles(scene.item)}
           next={scene?.next ? [sceneTiles(scene.next)] : []}
-          glide={glide}
           visible={layers.scene.on && !!scene}
           opacity={layers.scene.opacity}
           maxzoom={15}
