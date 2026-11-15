@@ -37,6 +37,7 @@ import {
   type LayerState,
 } from "@/lib/layers"
 import { FieldFrames } from "@/map/FieldFrames"
+import { Prefetch } from "@/map/Prefetch"
 import { RasterLayer } from "@/map/RasterLayer"
 import { useFieldDraw } from "@/map/useFieldDraw"
 
@@ -426,6 +427,7 @@ export function FieldMap({
       />
       <FieldLabels data={data} />
       <FitToField field={selectedField} layout={layout} />
+      <Prefetch date={date} layers={layers} />
       <MapControls position="top-right" />
       {/* On a phone the drawer leaves too little map to draw on: starting an outline closes it. */}
       <DrawToolbar
