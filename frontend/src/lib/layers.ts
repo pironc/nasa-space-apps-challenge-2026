@@ -7,18 +7,19 @@ const gibs = (layer: string, date: string, level: number, ext: "jpg" | "png") =>
 
 export const BASEMAP = "https://tiles.openfreemap.org/styles/positron"
 
-export type LayerId =
-  "satellite" | "ndvi" | "truecolor" | "soil" | "rain" | "scene"
+export type LayerId = "satellite" | "ndvi" | "soil" | "scene" | "greenness"
 
 export type MapLayer = {
   id: LayerId
   label: string
   source: string
   hint: string
-  /** Tile URL for a date. The field image is built from a Sentinel-2 scene instead (sceneTiles). */
+  /** Tile URL for a date. Sentinel-2 layers are built from a pass instead (sceneTiles, greennessTiles). */
   tiles: (date: string) => string
   maxzoom: number
   legend?: string
+  /** Colours of a stepped scale drawn as the legend, lowest first. */
+  ramp?: readonly string[]
   /** Plain-language reading of the colour scale. */
   scale?: string
   attribution: string
@@ -35,7 +36,7 @@ export type MapLayer = {
 const GIBS_CREDIT = "Imagery: NASA GIBS / ESDIS"
 
 // Array order is draw order, bottom to top: the yearly mosaic is the base, regional NASA layers sit
-// above it, and the dated Sentinel-2 image around the selected field is on top.
+// above it, and the dated Sentinel-2 layers around the selected field are on top.
 export const LAYERS: MapLayer[] = [
   {
     id: "satellite",
@@ -54,9 +55,9 @@ export const LAYERS: MapLayer[] = [
   },
   {
     id: "ndvi",
-    label: "Vegetation (NDVI)",
-    source: "NASA MODIS Terra and Aqua, every 8 days",
-    hint: "Greenness at 250 m, the best of 16 days of passes, so clouds are left out. Terra and Aqua take turns, so a new picture comes every 8 days. It reads higher than the field chart (Sentinel-2).",
+    label: "Regional NDVI (NASA MODIS)",
+    source: "250 m, a new picture every 8 days, since 2001",
+    hint: "Greenness of the whole region: the best of 16 days of passes, so clouds are left out. Terra and Aqua take turns, so a new picture comes every 8 days. It reads higher than the field chart (Sentinel-2).",
     tiles: (d) => {
       const p = snapDate(d)
       return gibs(
@@ -77,23 +78,9 @@ export const LAYERS: MapLayer[] = [
     opacity: 0.85,
   },
   {
-    id: "truecolor",
-    label: "True colour",
-    source: "NASA MODIS Terra, daily",
-    hint: "What the region looked like from orbit that day, clouds included (250 m).",
-    tiles: (d) =>
-      gibs("MODIS_Terra_CorrectedReflectance_TrueColor", d, 9, "jpg"),
-    maxzoom: 9,
-    attribution: GIBS_CREDIT,
-    since: 2001,
-    daily: true,
-    on: false,
-    opacity: 1,
-  },
-  {
     id: "soil",
-    label: "Modelled root-zone moisture, 9 km (NASA SMAP)",
-    source: "Daily model snapshot",
+    label: "Soil moisture (NASA SMAP)",
+    source: "Root zone, about 9 km, modelled daily, since 2016",
     hint: "Modelled soil wetness for the surrounding area (top metre, about 9 km), not your field.",
     tiles: (d) => gibs("SMAP_L4_Analyzed_Root_Zone_Soil_Moisture", d, 6, "png"),
     maxzoom: 6,
@@ -107,26 +94,10 @@ export const LAYERS: MapLayer[] = [
     opacity: 0.7,
   },
   {
-    id: "rain",
-    label: "Rain rate on this day (NASA GPM IMERG)",
-    source: "Daily, about 10 km",
-    hint: "A daily mean rain rate, not a rain total.",
-    tiles: (d) => gibs("IMERG_Precipitation_Rate", d, 6, "png"),
-    maxzoom: 6,
-    legend: `${LEGENDS}/GPM_Precipitation_Rate_H.svg`,
-    scale:
-      "Green is light rain, red is heavy (0.1 to 53 mm per hour). Purple tones are snow.",
-    attribution: GIBS_CREDIT,
-    since: 2001,
-    daily: true,
-    on: false,
-    opacity: 0.7,
-  },
-  {
     id: "scene",
     label: "Satellite image of the day",
     source: "Sentinel-2, 10 m, when clear",
-    hint: "The area around the selected field as Sentinel-2 saw it, at 10 m, fading from one clear pass over the field to the next (every 2 to 5 days in the growing season). Zoom in to see it.",
+    hint: "The area around the selected field as Sentinel-2 saw it, at 10 m, on the latest clear pass over the field (every 2 to 5 days from May to September). Zoom in to see it.",
     tiles: () => "",
     maxzoom: 15,
     attribution:
@@ -135,17 +106,78 @@ export const LAYERS: MapLayer[] = [
     on: true,
     opacity: 1,
   },
+  {
+    id: "greenness",
+    label: "Field NDVI (Sentinel-2)",
+    source: "10 m, each clear pass, since 2018",
+    hint: "Greenness around the selected field on the latest clear pass over it (every 2 to 5 days from May to September). Clouds are left blank. Zoom in to see it.",
+    tiles: () => "",
+    maxzoom: 15,
+    ramp: [
+      "#d8c3a5",
+      "#e3d7a3",
+      "#e6e59a",
+      "#c7de86",
+      "#a2cf72",
+      "#78bb5e",
+      "#4fa34a",
+      "#2a8738",
+      "#0e6a27",
+    ],
+    scale:
+      "Brown is bare soil, light green is a thin crop, dark green is a dense crop (NDVI 0 to 0.9, in steps of 0.1).",
+    attribution:
+      "Contains modified Copernicus Sentinel data, via Microsoft Planetary Computer",
+    since: 2018,
+    on: false,
+    opacity: 1,
+  },
 ]
 
 /** Natural-colour tiles of one Sentinel-2 scene, rendered by the Planetary Computer (cached for an hour). */
 export const sceneTiles = (item: string) =>
-  "https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?" +
+  PC_TILES +
   new URLSearchParams({
     collection: "sentinel-2-l2a",
     item,
     assets: "visual",
     asset_bidx: "visual|1,2,3",
     nodata: "0",
+  })
+
+const PC_TILES =
+  "https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x.png?"
+const GREEN_RAMP = LAYERS.find((l) => l.id === "greenness")!.ramp!
+const hex = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16))
+/**
+ * NDVI rescaled from 0..0.9 to 0..255, then coloured in steps of 0.1. Below 0 (water) and masked
+ * pixels (cloud, shadow, snow, outside the pass) fall in the first, transparent, interval.
+ */
+const GREEN_COLORMAP = JSON.stringify([
+  [
+    [0, 1],
+    [0, 0, 0, 0],
+  ],
+  ...GREEN_RAMP.map((c, i) => [
+    [Math.max(1, (i * 255) / 9), i === 8 ? 256 : ((i + 1) * 255) / 9],
+    [...hex(c), 255],
+  ]),
+])
+
+/**
+ * Greenness (NDVI) tiles of one Sentinel-2 pass, on vegetation and bare soil only (scene class 4 or 5).
+ * Passes from processing baseline 04.00 on (2022 onward) store every band + 1000: a sum of two
+ * bands then carries 2000 too many.
+ */
+export const greennessTiles = (item: string, offset: boolean) =>
+  PC_TILES +
+  new URLSearchParams({
+    collection: "sentinel-2-l2a",
+    item,
+    expression: `where((SCL==4)|(SCL==5),(B08-B04)/(B08+B04${offset ? "-2000" : ""}),-9)`,
+    asset_as_band: "true",
+    rescale: "0,0.9",
+    colormap: GREEN_COLORMAP,
   })
 
 /** A pass older than this is not shown: the ground can have changed too much since. */
@@ -162,27 +194,31 @@ export function scenePass(dates: string[], day: string) {
   return { date: dates[i], next: dates[i + 1] ?? null }
 }
 
-/** The map's main view, picked on the map: the Sentinel-2 image of the day, or one NASA layer, over the yearly mosaic. */
+/** The map's main view, picked on the map: one dated layer over the yearly mosaic. */
 export const VIEWS = [
-  { id: "imagery", label: "Imagery", short: "Imagery", layer: null },
-  { id: "vegetation", label: "Vegetation", short: "Vegetation", layer: "ndvi" },
+  { id: "imagery", label: "Imagery", short: "Imagery", layer: "scene" },
   {
-    id: "truecolor",
-    label: "True colour",
-    short: "Colour",
-    layer: "truecolor",
+    id: "field-ndvi",
+    label: "Field NDVI",
+    short: "Field NDVI",
+    layer: "greenness",
+  },
+  {
+    id: "regional-ndvi",
+    label: "Regional NDVI",
+    short: "Region NDVI",
+    layer: "ndvi",
   },
   { id: "soil", label: "Soil moisture", short: "Soil", layer: "soil" },
-  { id: "rain", label: "Rain", short: "Rain", layer: "rain" },
 ] as const satisfies {
   id: string
   label: string
   /** For a phone-width map. */
   short: string
-  layer: LayerId | null
+  layer: LayerId
 }[]
-const DATED: LayerId[] = ["scene", "ndvi", "truecolor", "soil", "rain"]
-const viewLayer = (v: (typeof VIEWS)[number]) => v.layer ?? "scene"
+const DATED = VIEWS.map((v) => v.layer)
+const viewLayer = (v: (typeof VIEWS)[number]) => v.layer
 
 /** The view the layer switches add up to, or "" when they match none (set by hand in the sidebar). */
 export const viewOf = (s: LayerState) => {
@@ -299,7 +335,7 @@ export const formatDate = (day: string) =>
 export function selfCheck() {
   const ids = LAYERS.map((l) => l.id).join()
   // the mosaic is the base; regional layers above it; the field image on top
-  if (ids !== "satellite,ndvi,truecolor,soil,rain,scene")
+  if (ids !== "satellite,ndvi,soil,scene,greenness")
     throw new Error(`draw order is ${ids}`)
   const on = LAYERS.filter((l) => l.on)
     .map((l) => l.id)
@@ -346,6 +382,15 @@ export function selfCheck() {
     throw new Error("clampDay")
   if (!sceneTiles("X").includes("item=X") || sceneTiles("X").includes("+"))
     throw new Error("sceneTiles")
+  const g = (o: boolean) =>
+    new URL(greennessTiles("X", o).replace("{z}/{x}/{y}", "1/0/0"))
+  if (
+    !g(true).searchParams.get("expression")!.includes("B04-2000)") ||
+    g(false).searchParams.get("expression")!.includes("2000") ||
+    greennessTiles("X", true).includes("+") ||
+    JSON.parse(g(true).searchParams.get("colormap")!).length !== 10
+  )
+    throw new Error("greennessTiles")
   const dates = ["2021-07-10", "2021-07-20", "2021-09-30"]
   const at = (d: string) => JSON.stringify(scenePass(dates, d))
   if (at("2021-07-01") !== "null") throw new Error("before the first pass")
@@ -359,10 +404,10 @@ export function selfCheck() {
     throw new Error("last pass")
   const base = defaultLayerState()
   if (viewOf(base) !== "imagery") throw new Error("default view")
-  const rain = withView(base, "rain")
-  if (viewOf(rain) !== "rain" || rain.scene.on || !rain.satellite.on)
+  const field = withView(base, "field-ndvi")
+  if (viewOf(field) !== "field-ndvi" || field.scene.on || !field.satellite.on)
     throw new Error("withView")
-  if (viewOf({ ...rain, ndvi: { on: true, opacity: 1 } }) !== "")
+  if (viewOf({ ...field, ndvi: { on: true, opacity: 1 } }) !== "")
     throw new Error("mixed layers match no view")
   console.log("layers self-check passed")
 }

@@ -6,7 +6,7 @@ Field Shift looks at a crop field in the northern Kazakhstan grain belt the way 
 
 ## What it does
 
-- **Map.** Pick what the map shows: NASA vegetation (MODIS NDVI), true colour, soil moisture (SMAP) or rainfall (GPM IMERG), with a time slider back to 2001 and a yearly Sentinel-2 mosaic underneath. Zoomed in on a field, the whole view shows Sentinel-2 as it was on each clear pass, fading from one pass to the next as the days go by.
+- **Map.** Pick what the map shows, day by day, over a yearly Sentinel-2 mosaic: the Sentinel-2 image of the latest clear pass over the field (10 m, every 2 to 5 days), field greenness (Sentinel-2 NDVI, 10 m, same passes), regional greenness (NASA MODIS NDVI, 250 m, every 8 days since 2001) or root-zone soil moisture (NASA SMAP, daily since 2016).
 - **Fields.** Three demo fields traced on satellite imagery, one per region. Draw your own field to analyse it live (needs the analysis service running).
 - **Strategies.** Three rotation options scored from a crop catalogue against the field's stress profile. Sliders for the farmer's priorities (save water, build soil, income now) and a "drier and hotter" what-if change the ranking in the browser.
 - **Seasons.** Greenness through each season since 2018 (Sentinel-2) against the field's own normal, with findings such as a peak well below normal or bare soil in mid-season, and the NASA MODIS record since 2000.
@@ -62,7 +62,7 @@ No API keys are needed for anything.
 ## Data and credits
 
 - **NASA POWER.** The data was obtained from National Aeronautics and Space Administration (NASA) Langley Research Center's Prediction Of Worldwide Energy Resources (POWER) project funded through the NASA Earth Science Division. The data was obtained from the POWER Project's Daily 2.10.3 version in November 2026.
-- **NASA GIBS and MODIS.** We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS). Layers: MODIS Terra corrected reflectance, MODIS Terra and Aqua 16-day NDVI, SMAP L4 root-zone soil moisture, GPM IMERG precipitation rate. Field statistics use the MODIS MOD13Q1 v6.1 vegetation index product.
+- **NASA GIBS and MODIS.** We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS). Layers: MODIS Terra and Aqua 16-day NDVI, SMAP L4 root-zone soil moisture. Field statistics use the MODIS MOD13Q1 v6.1 vegetation index product.
 - **Sentinel-2.** Contains modified Copernicus Sentinel data 2018-2026.
 - **Satellite mosaic.** EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2017-2025), CC BY-NC-SA 4.0.
 - **Base map.** OpenFreeMap © OpenMapTiles, data from OpenStreetMap contributors.

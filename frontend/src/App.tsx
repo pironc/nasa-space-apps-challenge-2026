@@ -81,8 +81,8 @@ export function App() {
     [analysis]
   )
   const sceneDates = useMemo(() => scenes.map((s) => s.date), [scenes])
-  const itemOf = useMemo(
-    () => Object.fromEntries(scenes.map((s) => [s.date, s.item])),
+  const passOn = useMemo(
+    () => Object.fromEntries(scenes.map((s) => [s.date, s])),
     [scenes]
   )
   // Play moves one day at a time and loops within the year.
@@ -96,7 +96,8 @@ export function App() {
     const a = step(date)
     return [a, step(a)]
   }, [date, step])
-  const showScene = !!selected && layers.scene.on && year >= 2018
+  const showScene =
+    !!selected && (layers.scene.on || layers.greenness.on) && year >= 2018
   const pass = showScene ? scenePass(sceneDates, date) : undefined
   // Play waits until the next frame of every visible layer has loaded.
   const [readyById, setReadyById] = useState<Record<string, boolean>>({})
@@ -254,8 +255,8 @@ export function App() {
             scene={
               pass
                 ? {
-                    item: itemOf[pass.date],
-                    next: pass.next && itemOf[pass.next],
+                    now: passOn[pass.date],
+                    next: pass.next ? passOn[pass.next] : null,
                   }
                 : null
             }
@@ -311,7 +312,7 @@ export function App() {
               stepMs={STEP_MS}
               ready={ready}
               pass={pass}
-              sceneDates={layers.scene.on ? sceneDates : []}
+              sceneDates={showScene ? sceneDates : []}
               vegetation={layers.ndvi.on}
             />
           </div>

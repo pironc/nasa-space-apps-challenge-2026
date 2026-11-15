@@ -112,13 +112,14 @@ export function TimeSlider({
           {pass !== undefined && (
             <div className="text-xs text-pretty text-muted-foreground tabular-nums">
               {pass
-                ? `Satellite image from ${formatDay(pass.date)} (Sentinel-2)`
-                : "No clear satellite image in the 30 days before"}
+                ? `Field image from ${formatDay(pass.date)} (Sentinel-2)`
+                : "No clear field image in the 30 days before"}
             </div>
           )}
           {vegetation && (
             <div className="text-xs text-pretty text-muted-foreground tabular-nums">
-              Vegetation: best of the 16 days from {formatDate(snapDate(shown))}
+              Regional NDVI: best of the 16 days from{" "}
+              {formatDate(snapDate(shown))}
             </div>
           )}
         </div>

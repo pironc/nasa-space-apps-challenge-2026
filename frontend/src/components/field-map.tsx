@@ -32,12 +32,14 @@ import {
   BASEMAP,
   LAYERS,
   nextPeriod,
+  greennessTiles,
   sceneTiles,
   type LayerState,
 } from "@/lib/layers"
 import { Prefetch } from "@/map/Prefetch"
 import { RasterLayer } from "@/map/RasterLayer"
 import { useFieldDraw } from "@/map/useFieldDraw"
+import type { Pass } from "@/lib/analysis"
 
 // The one accent. Reds, oranges, yellows and greens belong to the data underneath.
 const ACCENT = "#256abf"
@@ -288,9 +290,9 @@ type Props = {
   /** The dates play will step to next: their frames load in the background. */
   nextDates: string[]
   /** Sentinel-2 item ids for the day: the pass shown, and the one after it, loading ahead. */
-  scene: { item: string; next: string | null } | null
+  scene: { now: Pass; next: Pass | null } | null
   /** Every clear pass over the selected field, fetched ahead for the area in view. */
-  scenes: { date: string; item: string }[]
+  scenes: Pass[]
   onReady: (id: string, ready: boolean) => void
   layers: LayerState
   fields: SavedField[]
@@ -338,43 +340,52 @@ export function FieldMap({
       maxZoom={16}
       attributionControl={{ compact: true }}
     >
-      {LAYERS.filter((l) => l.id !== "scene").map((l) => {
-        const common = {
-          id: l.id,
-          visible: layers[l.id].on && year >= l.since,
-          opacity: layers[l.id].opacity,
-          maxzoom: l.maxzoom,
-          attribution: l.attribution,
-          onReady,
+      {LAYERS.filter((l) => l.id !== "scene" && l.id !== "greenness").map(
+        (l) => {
+          const common = {
+            id: l.id,
+            visible: layers[l.id].on && year >= l.since,
+            opacity: layers[l.id].opacity,
+            maxzoom: l.maxzoom,
+            attribution: l.attribution,
+            onReady,
+          }
+          return (
+            <RasterLayer
+              key={l.id}
+              {...common}
+              tiles={l.tiles(date)}
+              next={
+                l.period
+                  ? [l.tiles(nextPeriod(date))]
+                  : nextDates.map((d) => l.tiles(d))
+              }
+            />
+          )
         }
-        return (
-          <RasterLayer
-            key={l.id}
-            {...common}
-            tiles={l.tiles(date)}
-            next={
-              l.period
-                ? [l.tiles(nextPeriod(date))]
-                : nextDates.map((d) => l.tiles(d))
-            }
-          />
-        )
-      })}
-      {/* The whole view as Sentinel-2 saw it on the latest clear pass over the selected field.
-          Tiles are rendered live by the Planetary Computer. */}
-      {selectedField && (
-        <RasterLayer
-          id="scene"
-          tiles={scene && sceneTiles(scene.item)}
-          next={scene?.next ? [sceneTiles(scene.next)] : []}
-          visible={layers.scene.on && !!scene}
-          opacity={layers.scene.opacity}
-          maxzoom={15}
-          minzoom={10}
-          attribution={LAYERS.find((l) => l.id === "scene")!.attribution}
-          onReady={onReady}
-        />
       )}
+      {/* The whole view as Sentinel-2 saw it on the latest clear pass over the selected field, in
+          natural colour or as greenness. Tiles are rendered live by the Planetary Computer. */}
+      {selectedField &&
+        (
+          [
+            ["scene", (p: Pass) => sceneTiles(p.item)],
+            ["greenness", (p: Pass) => greennessTiles(p.item, p.offset)],
+          ] as const
+        ).map(([id, tilesOf]) => (
+          <RasterLayer
+            key={id}
+            id={id}
+            tiles={scene && tilesOf(scene.now)}
+            next={scene?.next ? [tilesOf(scene.next)] : []}
+            visible={layers[id].on && !!scene}
+            opacity={layers[id].opacity}
+            maxzoom={15}
+            minzoom={10}
+            attribution={LAYERS.find((l) => l.id === id)!.attribution}
+            onReady={onReady}
+          />
+        ))}
       <MapGeoJSON
         data={data}
         promoteId="id"

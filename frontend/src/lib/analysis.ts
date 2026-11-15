@@ -5,7 +5,8 @@ import type { Polygon } from "geojson"
 
 import type { RotationId } from "@/lib/fields"
 
-export type LandUse = "cropped" | "fallow" | "ambiguous" | "early_green" | "unknown"
+export type LandUse =
+  "cropped" | "fallow" | "ambiguous" | "early_green" | "unknown"
 export type Severity = "info" | "watch" | "warning" | "severe"
 
 /** A finding about one finished season. Never a live notification. */
@@ -14,7 +15,13 @@ export type Verdict = {
    * VEG_DEFICIT and BARE_SOIL are findings. LAND_USE_UNCLEAR asks the user whether a low year was a
    * failed crop or fallow (severity info, no judgement). NOTE is an explanatory line (severity info).
    */
-  type: "VEG_DEFICIT" | "BARE_SOIL" | "LAND_USE_UNCLEAR" | "NOTE" | "INSUFFICIENT_DATA" | "NO_BASELINE"
+  type:
+    | "VEG_DEFICIT"
+    | "BARE_SOIL"
+    | "LAND_USE_UNCLEAR"
+    | "NOTE"
+    | "INSUFFICIENT_DATA"
+    | "NO_BASELINE"
   severity: Severity
   /** Short plain-language headline, e.g. "Peak greenness well below this field's normal". */
   title: string
@@ -55,7 +62,11 @@ export type Baseline = {
 }
 
 /** NASA MODIS 250 m, June to August peak NDVI per year since 2000. Compare MODIS only with MODIS. */
-export type ModisYear = { year: number; peak: number | null; use: "cropped" | "fallow" | "unknown" }
+export type ModisYear = {
+  year: number
+  peak: number | null
+  use: "cropped" | "fallow" | "unknown"
+}
 
 export type Cause = {
   type: "water_deficit" | "heat" | "frost" | "wet_harvest"
@@ -115,7 +126,12 @@ export type FieldAnalysis = {
   climate: {
     /** NASA POWER grid cell centre; about 55 x 42 km, so this is regional weather. */
     cell: { lat: number; lon: number }
-    normals: { rainMayAug: number; rainOctApr: number; hotDays30: number; htc: number }
+    normals: {
+      rainMayAug: number
+      rainOctApr: number
+      hotDays30: number
+      htc: number
+    }
     seasons: ClimateSeason[]
     /** Seasons since 1991 with `drought` other than "none". */
     droughtYears: number[]
@@ -123,7 +139,8 @@ export type FieldAnalysis = {
   }
   profile: StressProfile
   /** Sentinel-2 passes clear over the field (at least 75% of it), oldest first. Shown as the dated image on the map. */
-  scenes: { date: string; item: string; clear: number }[]
+  /** Clear passes over the field. offset: the pass stores reflectance + 1000 (processing baseline 04.00 on). */
+  scenes: Pass[]
   /** Modelled soil (ISRIC SoilGrids, 250 m). Not a field test. Presets only. */
   soil: { clayPct: number; sandPct: number; ph: number; source: string } | null
 }
@@ -184,4 +201,12 @@ export type StrategyInput = {
   priorities: Priorities
   /** 0 = the climate as observed, 1 = markedly drier and hotter. A what-if, not a forecast. */
   drier: number
+}
+
+/** A clear Sentinel-2 pass over the field. */
+export type Pass = {
+  date: string
+  item: string
+  clear: number
+  offset: boolean
 }
