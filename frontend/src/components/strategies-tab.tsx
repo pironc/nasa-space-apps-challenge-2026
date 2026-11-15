@@ -24,8 +24,15 @@ import type {
   Priorities,
   Strategy,
 } from "@/lib/analysis"
-import { seasonHeadline } from "@/lib/data"
-import type { RotationId } from "@/lib/fields"
+import { optionsHeadline } from "@/lib/story"
+import { ROTATIONS, type RotationId } from "@/lib/fields"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   compareStrategies,
   cropLabel,
@@ -164,9 +171,7 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
         <ol className="grid grid-cols-2 gap-1 @xs/strategy:grid-cols-4">
           {strategy.rotation.map((id, i) => (
             <li key={i} className="rounded-md border px-2 py-1 leading-tight">
-              <div className="text-xs text-muted-foreground">
-                Year {i + 1}
-              </div>
+              <div className="text-xs text-muted-foreground">Year {i + 1}</div>
               <div className="text-xs font-medium">{cropLabel(id)}</div>
             </li>
           ))}
@@ -214,9 +219,8 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
 
 type Props = {
   analysis: FieldAnalysis
-  /** The season the map and the other tabs show. */
-  year: number
   declared: RotationId
+  onRotation: (rotation: RotationId) => void
   priorities: Priorities
   onPriorities: (p: Priorities) => void
   drier: number
@@ -225,8 +229,8 @@ type Props = {
 
 export function StrategiesTab({
   analysis,
-  year,
   declared,
+  onRotation,
   priorities,
   onPriorities,
   drier,
@@ -257,10 +261,38 @@ export function StrategiesTab({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* The finding first: the rotation options are a response to it. */}
-      <p className="rounded-lg bg-muted px-3 py-2 text-sm font-medium text-pretty">
-        {seasonHeadline(analysis.seasons, year)}
+      {/* What the options answer: this place's stresses, from the whole record. */}
+      <p className="text-sm font-medium text-pretty">
+        {optionsHeadline(analysis.profile, analysis.climate.normals.htc)}
       </p>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="panel-rotation">Your current rotation</Label>
+        <Select
+          value={declared}
+          onValueChange={(v) => onRotation(v as RotationId)}
+        >
+          <SelectTrigger id="panel-rotation" className="w-full @2xl:w-72">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(ROTATIONS).map(([id, label]) => (
+              <SelectItem key={id} value={id}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {analysis.soil && (
+          <p
+            className="text-xs text-muted-foreground tabular-nums"
+            title={analysis.soil.source}
+          >
+            Modelled soil: clay {Math.round(analysis.soil.clayPct)}%, sand{" "}
+            {Math.round(analysis.soil.sandPct)}%, pH{" "}
+            {analysis.soil.ph.toFixed(1)} (not a field test)
+          </p>
+        )}
+      </div>
 
       {/* Straight after the finding and above the cards, so all three options and their bars are on the first screen. */}
       <section className="flex flex-col gap-2">

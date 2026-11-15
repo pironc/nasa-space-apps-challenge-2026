@@ -8,8 +8,9 @@ import { toast } from "sonner"
 
 import { AnalysisPanel, TABS, type TabId } from "@/components/analysis-panel"
 import { AppSidebar } from "@/components/app-sidebar"
-import { FieldMap } from "@/components/field-map"
+import { FieldMap, type Frame } from "@/components/field-map"
 import { Button } from "@/components/ui/button"
+import { MapKey } from "@/components/map-key"
 import { TimeSlider } from "@/components/time-slider"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
@@ -22,6 +23,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { loadPresets, midJuly, useAnalysis, type Declared } from "@/lib/data"
+import { mapFocus, type MapFocus } from "@/lib/story"
 import {
   presetToField,
   useSavedFields,
@@ -39,7 +41,6 @@ import {
   viewOf,
   VIEWS,
   withView,
-  type LayerId,
   type LayerState,
 } from "@/lib/layers"
 
@@ -50,7 +51,7 @@ const SPARSE_STEP_MS = 600
 
 const query = new URLSearchParams(location.search)
 const tabOf = (q: URLSearchParams) =>
-  TABS.find((t) => t === q.get("tab")) ?? "strategies"
+  TABS.find((t) => t === q.get("tab")) ?? "story"
 const NO_ANSWERS = {}
 
 export function App() {
@@ -188,7 +189,7 @@ export function App() {
     const t = setTimeout(() => {
       const q = new URLSearchParams({ date })
       if (selectedId) q.set("field", selectedId)
-      if (tab !== "strategies") q.set("tab", tab)
+      if (tab !== "story") q.set("tab", tab)
       const shown = new URLSearchParams(location.search).get("field")
       history[shown && shown !== selectedId ? "pushState" : "replaceState"](
         null,
@@ -210,11 +211,24 @@ export function App() {
     return () => removeEventListener("popstate", onPop)
   }, [])
 
-  const onLayerChange = useCallback(
-    (id: LayerId, patch: Partial<LayerState[LayerId]>) =>
-      setLayers((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } })),
-    []
-  )
+  // Each tab talks about something the map can show: the field's greenness for the story and its
+  // growth, soil moisture for the weather. Opening a tab or picking a season takes the map there.
+  const [frame, setFrame] = useState<Frame>({ kind: "field", n: 0 })
+  const showOnMap = (f: MapFocus) => {
+    setLayers((s) => withView(s, f.view))
+    setDate(f.date)
+    setFrame((p) => ({ kind: f.frame, n: p.n + 1 }))
+  }
+  const focusOn = (t: TabId, y: number) => {
+    if (t === "options" || analysis.status !== "ready") return false
+    const f = mapFocus(
+      analysis.analysis,
+      y,
+      t === "weather" ? "weather" : "growth"
+    )
+    if (f) showOnMap(f)
+    return !!f
+  }
 
   const onDelete = (field: SavedField) => {
     remove(field.id)
@@ -239,9 +253,13 @@ export function App() {
       field={selected}
       state={analysis}
       tab={tab}
-      onTabChange={setTab}
+      onTabChange={(t) => {
+        setTab(t)
+        focusOn(t, year)
+      }}
+      onFocus={showOnMap}
       year={year}
-      onYear={(y) => setDate(clampDay(midJuly(y)))}
+      onYear={(y) => focusOn(tab, y) || setDate(clampDay(midJuly(y)))}
       onRotation={onRotation}
       answers={fieldAnswers}
       onDeclare={(y, use) =>
@@ -257,7 +275,7 @@ export function App() {
   )
   // Wide only when asked, for comparing the three strategy cards side by side.
   const wide =
-    panelMode === "wide" && tab === "strategies" && analysis.status !== "failed"
+    panelMode === "wide" && tab === "options" && analysis.status !== "failed"
   const hidden = panelMode === "hidden"
   const drawer = isMobile && !!selected
 
@@ -266,8 +284,6 @@ export function App() {
     <SidebarProvider defaultOpen={window.innerWidth >= 1100}>
       <AppSidebar
         year={year}
-        layers={layers}
-        onLayerChange={onLayerChange}
         presets={presets}
         fields={saved}
         obtained={
@@ -300,6 +316,7 @@ export function App() {
             selectedId={selectedId}
             onSelect={select}
             // the map changes width with the panel, and on a phone the drawer covers most of it
+            frame={frame}
             layout={
               drawer ? "drawer" : hidden ? "full" : wide ? "wide" : "narrow"
             }
@@ -317,27 +334,30 @@ export function App() {
           <div
             className={`absolute inset-x-3 z-10 mx-auto max-w-md ${drawer ? "bottom-[calc(50dvh+0.75rem)]" : "bottom-16"}`}
           >
-            {/* What the map shows: one choice, the same switches as in the sidebar */}
-            <ToggleGroup
-              type="single"
-              aria-label="Map layer"
-              value={viewOf(layers)}
-              onValueChange={(v) => v && setLayers((s) => withView(s, v))}
-              spacing={1}
-              className="mx-auto mb-2 w-fit max-w-full overflow-x-auto rounded-xl border bg-background/95 p-1 shadow-md"
-            >
-              {VIEWS.map((v) => (
-                <ToggleGroupItem
-                  key={v.id}
-                  value={v.id}
-                  aria-label={v.label}
-                  className="px-2 transition-colors data-[state=on]:bg-primary data-[state=on]:text-primary-foreground @md:px-2.5 pointer-coarse:h-10"
-                >
-                  <span className="@md:hidden">{v.short}</span>
-                  <span className="hidden @md:inline">{v.label}</span>
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+            {/* What the map shows, and how to read it */}
+            <div className="mx-auto mb-2 flex w-fit max-w-full flex-col gap-1 rounded-xl border bg-background/95 p-1 shadow-md">
+              <ToggleGroup
+                type="single"
+                aria-label="Map layer"
+                value={viewOf(layers)}
+                onValueChange={(v) => v && setLayers((s) => withView(s, v))}
+                spacing={1}
+                className="max-w-full overflow-x-auto"
+              >
+                {VIEWS.map((v) => (
+                  <ToggleGroupItem
+                    key={v.id}
+                    value={v.id}
+                    aria-label={v.label}
+                    className="px-2 transition-colors data-[state=on]:bg-primary data-[state=on]:text-primary-foreground @md:px-2.5 pointer-coarse:h-10"
+                  >
+                    <span className="@md:hidden">{v.short}</span>
+                    <span className="hidden @md:inline">{v.label}</span>
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <MapKey view={viewOf(layers)} />
+            </div>
             <TimeSlider
               date={date}
               onChange={setDate}
@@ -367,7 +387,7 @@ export function App() {
               >
                 {hidden ? <PanelRightOpenIcon /> : <PanelRightCloseIcon />}
               </Button>
-              {!hidden && tab === "strategies" && (
+              {!hidden && tab === "options" && (
                 <Button
                   variant="outline"
                   size="icon"

@@ -100,13 +100,18 @@ function FieldLabels({
 /** What surrounds the map: a narrow or wide panel beside it, no panel, or (on a phone) a drawer over its lower part. */
 export type Layout = "narrow" | "wide" | "full" | "drawer"
 
+/** What the map frames: the field, or the region around it. A new `n` asks for the framing again. */
+export type Frame = { kind: "field" | "region"; n: number }
+
 /** Brings the selected field into view, also on first load from a shared link and when the map changes size. */
 function FitToField({
   field,
   layout,
+  frame,
 }: {
   field: SavedField | undefined
   layout: Layout
+  frame: Frame
 }) {
   const { map, isLoaded } = useMap()
   const id = field?.id
@@ -128,6 +133,13 @@ function FitToField({
           }
         : Math.min(96, Math.round(w / 5))
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches
+    // regional layers (about 9 km per pixel) only say something from far out
+    if (frame.kind === "region")
+      return void map.easeTo({
+        center: centre(field.geometry),
+        zoom: 7,
+        duration: still ? 0 : 450,
+      })
     map.fitBounds(bounds(field.geometry), {
       padding,
       maxZoom: 13,
@@ -136,7 +148,7 @@ function FitToField({
     })
     // refit when the selection or the layout changes, not when the field object does
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, isLoaded, id, layout])
+  }, [map, isLoaded, id, layout, frame.n])
   return null
 }
 
@@ -299,6 +311,7 @@ type Props = {
   selectedId: string | null
   onSelect: (id: string | null) => void
   layout: Layout
+  frame: Frame
   onSave: (f: NewField) => void
 }
 
@@ -313,6 +326,7 @@ export function FieldMap({
   selectedId,
   onSelect,
   layout,
+  frame,
   onSave,
 }: Props) {
   const year = +date.slice(0, 4)
@@ -395,7 +409,7 @@ export function FieldMap({
         onClick={(e) => onSelect(e.feature.properties.id)}
       />
       <FieldLabels data={data} />
-      <FitToField field={selectedField} layout={layout} />
+      <FitToField field={selectedField} layout={layout} frame={frame} />
       <Prefetch date={date} layers={layers} scenes={scenes} />
       <MapControls position="top-right" />
       {/* On a phone the drawer leaves too little map to draw on: starting an outline closes it. */}

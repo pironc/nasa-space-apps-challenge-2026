@@ -22,6 +22,8 @@ export type MapLayer = {
   ramp?: readonly string[]
   /** Plain-language reading of the colour scale. */
   scale?: string
+  /** One line under the map's layer picker: how to read the layer. */
+  key: string
   attribution: string
   /** First year the layer has data for. */
   since: number
@@ -40,6 +42,7 @@ const GIBS_CREDIT = "Imagery: NASA GIBS / ESDIS"
 export const LAYERS: MapLayer[] = [
   {
     id: "satellite",
+    key: "A cloud-free mosaic of the year.",
     label: "Satellite mosaic",
     source: "Sentinel-2 cloudless, yearly",
     hint: "A cloud-free summer mosaic of the year: the base map, sharp enough to see field edges.",
@@ -55,6 +58,7 @@ export const LAYERS: MapLayer[] = [
   },
   {
     id: "ndvi",
+    key: "Brown is bare or dry, dark green is dense cover. 250 m, so close in it is blocky.",
     label: "Regional NDVI (NASA MODIS)",
     source: "250 m, a new picture every 8 days, since 2001",
     hint: "Greenness of the whole region: the best of 16 days of passes, so clouds are left out. Terra and Aqua take turns, so a new picture comes every 8 days. It reads higher than the field chart (Sentinel-2).",
@@ -79,6 +83,7 @@ export const LAYERS: MapLayer[] = [
   },
   {
     id: "soil",
+    key: "Water in the top metre of soil, modelled for about 9 km around: yellow is driest, blue is wettest. Compare dates rather than read one alone.",
     label: "Soil moisture (NASA SMAP)",
     source: "Root zone, about 9 km, modelled daily, since 2016",
     hint: "Modelled soil wetness for the surrounding area (top metre, about 9 km), not your field.",
@@ -86,7 +91,7 @@ export const LAYERS: MapLayer[] = [
     maxzoom: 6,
     legend: `${LEGENDS}/SMAP_Analyzed_Soil_Moisture_H.svg`,
     scale:
-      "Orange is dry, green to blue is wet (0 to 0.7 m³ of water per m³ of soil).",
+      "Yellow is driest, blue is wettest (0 to 0.7 m³ of water per m³ of soil).",
     attribution: GIBS_CREDIT,
     since: 2016,
     daily: true,
@@ -95,6 +100,7 @@ export const LAYERS: MapLayer[] = [
   },
   {
     id: "scene",
+    key: "Natural colour, 10 m, on each clear pass over the field. Zoom in to see it.",
     label: "Satellite image of the day",
     source: "Sentinel-2, 10 m, when clear",
     hint: "The area around the selected field as Sentinel-2 saw it, at 10 m, on the latest clear pass over the field (every 2 to 5 days from May to September). Zoom in to see it.",
@@ -103,11 +109,12 @@ export const LAYERS: MapLayer[] = [
     attribution:
       "Contains modified Copernicus Sentinel data, via Microsoft Planetary Computer",
     since: 2018,
-    on: true,
+    on: false,
     opacity: 1,
   },
   {
     id: "greenness",
+    key: "Brown is bare soil, dark green is a dense crop (NDVI 0 to 0.9). Blank: cloud or water.",
     label: "Field NDVI (Sentinel-2)",
     source: "10 m, each clear pass, since 2018",
     hint: "Greenness around the selected field on the latest clear pass over it (every 2 to 5 days from May to September). Clouds are left blank. Zoom in to see it.",
@@ -129,7 +136,7 @@ export const LAYERS: MapLayer[] = [
     attribution:
       "Contains modified Copernicus Sentinel data, via Microsoft Planetary Computer",
     since: 2018,
-    on: false,
+    on: true,
     opacity: 1,
   },
 ]
@@ -248,9 +255,6 @@ export const withView = (s: LayerState, view: string): LayerState => {
 
 export type LayerState = Record<LayerId, { on: boolean; opacity: number }>
 
-/** The sidebar's order: the field image first, then the regional layers, the base mosaic last. */
-export const PANEL_ORDER = [...LAYERS].reverse()
-
 export const defaultLayerState = () =>
   Object.fromEntries(
     LAYERS.map((l) => [l.id, { on: l.on, opacity: l.opacity }])
@@ -349,7 +353,7 @@ export function selfCheck() {
   const on = LAYERS.filter((l) => l.on)
     .map((l) => l.id)
     .join()
-  if (on !== "satellite,scene") throw new Error(`on by default: ${on}`)
+  if (on !== "satellite,greenness") throw new Error(`on by default: ${on}`)
   if (
     snapDate("2021-07-19") !== "2021-07-12" ||
     snapDate("2021-07-20") !== "2021-07-20" ||
@@ -412,9 +416,9 @@ export function selfCheck() {
   if (at("2021-09-30") !== JSON.stringify({ date: "2021-09-30", next: null }))
     throw new Error("last pass")
   const base = defaultLayerState()
-  if (viewOf(base) !== "imagery") throw new Error("default view")
-  const field = withView(base, "field-ndvi")
-  if (viewOf(field) !== "field-ndvi" || field.scene.on || !field.satellite.on)
+  if (viewOf(base) !== "field-ndvi") throw new Error("default view")
+  const field = withView(base, "soil")
+  if (viewOf(field) !== "soil" || field.greenness.on || !field.satellite.on)
     throw new Error("withView")
   if (viewOf({ ...field, ndvi: { on: true, opacity: 1 } }) !== "")
     throw new Error("mixed layers match no view")

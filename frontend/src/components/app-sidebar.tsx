@@ -8,7 +8,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { Label } from "@/components/ui/label"
 import {
   Sidebar,
   SidebarContent,
@@ -23,15 +22,10 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { Slider } from "@/components/ui/slider"
-import { Switch } from "@/components/ui/switch"
 import { formatHa, type SavedField } from "@/lib/fields"
-import { PANEL_ORDER, type LayerId, type LayerState } from "@/lib/layers"
 
 type Props = {
   year: number
-  layers: LayerState
-  onLayerChange: (id: LayerId, patch: Partial<LayerState[LayerId]>) => void
   presets: SavedField[]
   fields: SavedField[]
   /** ISO date the open field's analysis was built. */
@@ -43,8 +37,6 @@ type Props = {
 
 export function AppSidebar({
   year,
-  layers,
-  onLayerChange,
   presets,
   fields,
   obtained,
@@ -130,96 +122,6 @@ export function AppSidebar({
               ) : (
                 rows(fields, true)
               )}
-            </SidebarGroupContent>
-          </SidebarGroup>
-          <SidebarGroup>
-            <SidebarGroupLabel>Map layers</SidebarGroupLabel>
-            <SidebarGroupContent className="flex flex-col gap-1 px-2">
-              {PANEL_ORDER.map((l) => {
-                const state = layers[l.id]
-                const missing = year < l.since
-                return (
-                  <div
-                    key={l.id}
-                    className="flex flex-col gap-2 rounded-md py-1.5"
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <Switch
-                        id={`layer-${l.id}`}
-                        className="mt-0.5"
-                        checked={state.on}
-                        onCheckedChange={(on) => onLayerChange(l.id, { on })}
-                      />
-                      <div className="flex min-w-0 flex-1 flex-col gap-1 leading-tight">
-                        <Label
-                          htmlFor={`layer-${l.id}`}
-                          className="text-sm font-medium"
-                        >
-                          {l.label}
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          {missing ? `No data before ${l.since}` : l.source}
-                        </p>
-                      </div>
-                    </div>
-                    {state.on && !missing && (
-                      <div className="flex flex-col gap-2">
-                        <p className="pl-[2.625rem] text-xs text-muted-foreground">
-                          {l.hint}
-                        </p>
-                        <div className="flex items-center gap-2 pl-[2.625rem]">
-                          <span className="text-xs text-muted-foreground">
-                            Opacity
-                          </span>
-                          <Slider
-                            aria-label={`${l.label} opacity`}
-                            min={0.1}
-                            max={1}
-                            step={0.05}
-                            value={[state.opacity]}
-                            onValueChange={([opacity]) =>
-                              onLayerChange(l.id, { opacity })
-                            }
-                          />
-                        </div>
-                        {l.ramp && (
-                          <figure className="flex flex-col gap-1">
-                            <div className="flex h-3 overflow-hidden rounded-sm border">
-                              {l.ramp.map((c) => (
-                                <span
-                                  key={c}
-                                  className="flex-1"
-                                  style={{ background: c }}
-                                />
-                              ))}
-                            </div>
-                            <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-                              <span>0</span>
-                              <span>0.9</span>
-                            </div>
-                            <figcaption className="text-xs text-muted-foreground">
-                              {l.scale}
-                            </figcaption>
-                          </figure>
-                        )}
-                        {l.legend && (
-                          <figure className="flex flex-col gap-1">
-                            <img
-                              src={l.legend}
-                              alt=""
-                              className="h-auto w-full rounded-sm border bg-white"
-                              loading="lazy"
-                            />
-                            <figcaption className="text-xs text-muted-foreground">
-                              {l.scale}
-                            </figcaption>
-                          </figure>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>

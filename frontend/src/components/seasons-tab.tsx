@@ -43,15 +43,16 @@ import {
   landUse,
   modisDisagreement,
   modisSentence,
-  seasonStatus,
   type AnalysisState,
   type Declared,
 } from "@/lib/data"
 import { FIRST_YEAR } from "@/lib/layers"
+import { growthHeadline, mapFocus, type MapFocus } from "@/lib/story"
+import { FocusButton, SeasonSelect } from "@/components/season-select"
 
 // Status colour sits on the icon only; the word next to it carries the same meaning.
 // No green tick for a quiet season: no finding is not the same as a good crop.
-const STATUS: Record<
+export const STATUS: Record<
   Severity | "none" | "question" | "answered",
   { icon: LucideIcon; label: string; tone: string }
 > = {
@@ -80,7 +81,7 @@ const STATUS: Record<
   },
 }
 
-function Status({
+export function Status({
   severity,
   className,
 }: {
@@ -333,6 +334,8 @@ type Props = {
   demo: boolean
   /** Set while, or after, the field is analysed again with new answers. */
   refresh: Refresh
+  /** Moves the map to the evidence for the season. */
+  onFocus: (focus: MapFocus) => void
 }
 
 export function SeasonsTab({
@@ -345,8 +348,9 @@ export function SeasonsTab({
   onDeclare,
   demo,
   refresh,
+  onFocus,
 }: Props) {
-  const { seasons, baseline, modis, dekads } = analysis
+  const { seasons, baseline, dekads } = analysis
   const season = seasons.find((s) => s.year === year)
   const shown = compareYear(
     compare,
@@ -354,7 +358,6 @@ export function SeasonsTab({
     seasons.map((s) => s.year)
   )
   const other = seasons.find((s) => s.year === shown)
-  const disagreement = modisDisagreement(analysis, year)
   const span = seasons.length
     ? `${seasons[0].year} to ${seasons.at(-1)!.year}`
     : ""
@@ -372,45 +375,32 @@ export function SeasonsTab({
 
   return (
     <div className="flex flex-col gap-5">
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        spacing={1}
-        aria-label="Season"
-        value={String(year)}
-        onValueChange={(v) => v && onYear(+v)}
-        className="grid w-full grid-cols-3 @xl:grid-cols-5 @3xl:grid-cols-9"
-      >
-        {seasons.map((s) => {
-          const status = seasonStatus(s, answers[s.year]) ?? "none"
-          const use = landUse(s, answers[s.year], demo)
-          return (
-            <ToggleGroupItem
-              key={s.year}
-              value={String(s.year)}
-              className="h-auto flex-col items-start justify-start gap-0.5 px-2 py-1.5 text-left font-normal whitespace-normal data-[state=on]:border-primary data-[state=on]:bg-primary/10"
-            >
-              <span className="text-sm font-medium tabular-nums">{s.year}</span>
-              <span className="text-xs leading-tight text-muted-foreground">
-                {use.label}, {use.source}
-              </span>
-              <span className="flex items-center gap-1 text-xs">
-                <Status severity={status} />
-                {STATUS[status].label}
-              </span>
-            </ToggleGroupItem>
-          )
-        })}
-      </ToggleGroup>
+      <header className="flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm font-medium text-pretty">
+            {growthHeadline(analysis, year)}
+          </p>
+          <SeasonSelect
+            years={seasons.map((s) => s.year)}
+            year={year}
+            onYear={onYear}
+          />
+        </div>
+        <FocusButton
+          focus={mapFocus(analysis, year, "growth")}
+          onFocus={onFocus}
+        />
+      </header>
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div className="flex flex-col gap-1">
             <h3 className="text-sm font-medium">
-              Sentinel-2 detail since 2018 (ESA)
+              How the field greened through the season
             </h3>
             <p className="text-xs text-muted-foreground">
-              Greenness (NDVI, 0 to 1) through the season, in ten-day steps
+              Greenness (NDVI, 0 to 1) in ten-day steps, from every clear
+              Sentinel-2 pass (ESA)
             </p>
           </div>
           <div className={season ? "flex items-center gap-2" : "hidden"}>
@@ -580,156 +570,167 @@ export function SeasonsTab({
         ) : (
           <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
             Sentinel-2 detail for this field covers {span}. Pick one of those
-            seasons above, or read {year} in the NASA MODIS record below.
-          </p>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <div className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">NASA MODIS record since 2000</h3>
-          <p className="text-xs text-pretty text-muted-foreground">
-            Peak summer greenness (NDVI) each year, from 250 m pixels that
-            include neighbouring land. Summers that read as bare, which may be
-            failed crops, are not ranked. Click a bar from {FIRST_YEAR} on to
-            open that season.
-          </p>
-        </div>
-        {modis ? (
-          <>
-            <p className="text-pretty">{modisSentence(modis.years, year)}</p>
-            {disagreement && <p className="text-pretty">{disagreement}</p>}
-            <ChartContainer
-              config={modisConfig}
-              className="aspect-auto h-32 w-full"
-            >
-              <BarChart
-                accessibilityLayer
-                data={modis.years}
-                margin={{ left: 0, right: 8, top: 4, bottom: 0 }}
-                barCategoryGap={2}
-                onClick={(s) =>
-                  s.activeLabel &&
-                  +s.activeLabel >= FIRST_YEAR &&
-                  onYear(+s.activeLabel)
-                }
-              >
-                <defs>
-                  <pattern
-                    id="fallow-hatch"
-                    width="4"
-                    height="4"
-                    patternUnits="userSpaceOnUse"
-                    patternTransform="rotate(45)"
-                  >
-                    <rect
-                      width="1.5"
-                      height="4"
-                      fill="var(--muted-foreground)"
-                    />
-                  </pattern>
-                </defs>
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  dataKey="year"
-                  ticks={modis.years
-                    .map((m) => m.year)
-                    .filter((y) => y % 5 === 0)}
-                  tickLine={false}
-                  axisLine={false}
-                  className="tabular-nums"
-                />
-                <YAxis
-                  domain={[0, 1]}
-                  ticks={[0, 0.5, 1]}
-                  width={30}
-                  tickLine={false}
-                  axisLine={false}
-                  className="tabular-nums"
-                />
-                <ReferenceArea
-                  x1={year}
-                  x2={year}
-                  fill="var(--chart-1)"
-                  fillOpacity={0.12}
-                  stroke="none"
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      hideIndicator
-                      labelFormatter={(_, payload) => {
-                        const m = payload[0]?.payload
-                        return m
-                          ? `${m.year}${m.use === "fallow" ? ", fallow or bare, not ranked" : ""}`
-                          : null
-                      }}
-                      formatter={(value) => (
-                        <>
-                          <span className="flex-1 text-muted-foreground">
-                            Peak greenness (NDVI)
-                          </span>
-                          <span className="font-medium text-foreground tabular-nums">
-                            {Number(value).toFixed(2)}
-                          </span>
-                        </>
-                      )}
-                    />
-                  }
-                />
-                <Bar
-                  dataKey="peak"
-                  radius={[2, 2, 0, 0]}
-                  isAnimationActive={false}
-                >
-                  {modis.years.map((m) => (
-                    <Cell
-                      key={m.year}
-                      className={
-                        m.year >= FIRST_YEAR ? "cursor-pointer" : undefined
-                      }
-                      fill={
-                        m.use === "fallow"
-                          ? "url(#fallow-hatch)"
-                          : m.year === year
-                            ? "var(--chart-1)"
-                            : "var(--muted-foreground)"
-                      }
-                      fillOpacity={
-                        m.use === "fallow" || m.year === year ? 1 : 0.45
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ChartContainer>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              <Key swatch="size-2.5 rounded-[2px] bg-chart-1">{year}</Key>
-              <Key swatch="size-2.5 rounded-[2px] bg-muted-foreground/45">
-                Cropped-looking summer
-              </Key>
-              <span className="flex items-center gap-1.5">
-                <span
-                  aria-hidden
-                  className="inline-block size-2.5 shrink-0 rounded-[2px]"
-                  style={{ background: HATCH }}
-                />
-                Fallow or bare summer (not ranked)
-              </span>
-              <span>Empty: no reliable reading</span>
-            </div>
-            <p className="text-xs text-pretty text-muted-foreground">
-              {modis.note}
-            </p>
-          </>
-        ) : (
-          <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-            The NASA MODIS record is not shown for this field. Its 250 m pixels
-            mix a field of this size with its neighbours.
+            seasons, or read {year} in the NASA MODIS record on the Story tab.
           </p>
         )}
       </section>
     </div>
+  )
+}
+
+/** Peak summer greenness every year since 2000, from NASA MODIS. */
+export function ModisRecord({
+  analysis,
+  year,
+  onYear,
+}: {
+  analysis: FieldAnalysis
+  year: number
+  onYear: (year: number) => void
+}) {
+  const { modis } = analysis
+  const disagreement = modisDisagreement(analysis, year)
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-sm font-medium">NASA MODIS record since 2000</h3>
+        <p className="text-xs text-pretty text-muted-foreground">
+          Peak summer greenness (NDVI) each year, from 250 m pixels that include
+          neighbouring land. Summers that read as bare, which may be failed
+          crops, are not ranked. Click a bar from {FIRST_YEAR} on to open that
+          season.
+        </p>
+      </div>
+      {modis ? (
+        <>
+          <p className="text-pretty">{modisSentence(modis.years, year)}</p>
+          {disagreement && <p className="text-pretty">{disagreement}</p>}
+          <ChartContainer
+            config={modisConfig}
+            className="aspect-auto h-32 w-full"
+          >
+            <BarChart
+              accessibilityLayer
+              data={modis.years}
+              margin={{ left: 0, right: 8, top: 4, bottom: 0 }}
+              barCategoryGap={2}
+              onClick={(s) =>
+                s.activeLabel &&
+                +s.activeLabel >= FIRST_YEAR &&
+                onYear(+s.activeLabel)
+              }
+            >
+              <defs>
+                <pattern
+                  id="fallow-hatch"
+                  width="4"
+                  height="4"
+                  patternUnits="userSpaceOnUse"
+                  patternTransform="rotate(45)"
+                >
+                  <rect width="1.5" height="4" fill="var(--muted-foreground)" />
+                </pattern>
+              </defs>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="year"
+                ticks={modis.years
+                  .map((m) => m.year)
+                  .filter((y) => y % 5 === 0)}
+                tickLine={false}
+                axisLine={false}
+                className="tabular-nums"
+              />
+              <YAxis
+                domain={[0, 1]}
+                ticks={[0, 0.5, 1]}
+                width={30}
+                tickLine={false}
+                axisLine={false}
+                className="tabular-nums"
+              />
+              <ReferenceArea
+                x1={year}
+                x2={year}
+                fill="var(--chart-1)"
+                fillOpacity={0.12}
+                stroke="none"
+              />
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    hideIndicator
+                    labelFormatter={(_, payload) => {
+                      const m = payload[0]?.payload
+                      return m
+                        ? `${m.year}${m.use === "fallow" ? ", fallow or bare, not ranked" : ""}`
+                        : null
+                    }}
+                    formatter={(value) => (
+                      <>
+                        <span className="flex-1 text-muted-foreground">
+                          Peak greenness (NDVI)
+                        </span>
+                        <span className="font-medium text-foreground tabular-nums">
+                          {Number(value).toFixed(2)}
+                        </span>
+                      </>
+                    )}
+                  />
+                }
+              />
+              <Bar
+                dataKey="peak"
+                radius={[2, 2, 0, 0]}
+                isAnimationActive={false}
+              >
+                {modis.years.map((m) => (
+                  <Cell
+                    key={m.year}
+                    className={
+                      m.year >= FIRST_YEAR ? "cursor-pointer" : undefined
+                    }
+                    fill={
+                      m.use === "fallow"
+                        ? "url(#fallow-hatch)"
+                        : m.year === year
+                          ? "var(--chart-1)"
+                          : "var(--muted-foreground)"
+                    }
+                    fillOpacity={
+                      m.use === "fallow" || m.year === year ? 1 : 0.45
+                    }
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ChartContainer>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <Key swatch="size-2.5 rounded-[2px] bg-chart-1">{year}</Key>
+            <Key swatch="size-2.5 rounded-[2px] bg-muted-foreground/45">
+              Cropped-looking summer
+            </Key>
+            <span className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="inline-block size-2.5 shrink-0 rounded-[2px]"
+                style={{ background: HATCH }}
+              />
+              Fallow or bare summer (not ranked)
+            </span>
+            <span>Empty: no reliable reading</span>
+          </div>
+          <p className="text-xs text-pretty text-muted-foreground">
+            {modis.note}
+          </p>
+        </>
+      ) : (
+        <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+          The NASA MODIS record is not shown for this field. Its 250 m pixels
+          mix a field of this size with its neighbours.
+        </p>
+      )}
+    </section>
   )
 }
