@@ -87,7 +87,7 @@ export function AppSidebar({
       >
         <SidebarHeader className="px-4 pt-4 pb-2">
           <h1 className="text-base font-semibold tracking-tight">
-            Field Shift
+            Croppy
           </h1>
           <p className="text-xs text-muted-foreground">
             Season findings and rotation options, from NASA Earth data

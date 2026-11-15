@@ -1,8 +1,8 @@
-# Field Shift
+# Croppy
 
 **Which rotation survives the next drought?** A decision-support web app for the NASA Space Apps Challenge 2026, challenge *Field Shift: Adapting Farms with NASA Data*. Team **pironc**, Singapore local event.
 
-Field Shift looks at a crop field in the northern Kazakhstan grain belt the way NASA's satellites have seen it since 2000, sets each season against the field's own normal and against the regional weather record, and compares three crop-rotation options: the current rotation, a climate and water-resilient shift, and a soil-restoring shift. Every option lists why it is suggested, the evidence behind it, what satellites cannot see, and what a local farmer or agronomist has to check. It supports a decision. It does not make one.
+Croppy looks at a crop field in the northern Kazakhstan grain belt the way NASA's satellites have seen it since 2000, sets each season against the field's own normal and against the regional weather record, and compares three crop-rotation options: the current rotation, a climate and water-resilient shift, and a soil-restoring shift. Every option lists why it is suggested, the evidence behind it, what satellites cannot see, and what a local farmer or agronomist has to check. It supports a decision. It does not make one.
 
 ## What it does
 
@@ -46,7 +46,7 @@ npm install
 npm run dev                               # http://localhost:5173, /api is proxied to port 8000
 ```
 
-One container for both: `docker build -t fieldshift . && docker run -p 8088:8080 fieldshift`.
+One container for both: `docker build -t croppy . && docker run -p 8088:8080 croppy`.
 
 Rebuild the demo fields from live data: `cd backend && uv run python scripts/build_presets.py`.
 

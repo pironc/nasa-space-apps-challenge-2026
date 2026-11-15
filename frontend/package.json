@@ -1,5 +1,5 @@
 {
-  "name": "fieldshift-frontend",
+  "name": "croppy-frontend",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -52,5 +52,5 @@
     "typescript-eslint": "^8",
     "vite": "^8"
   },
-  "description": "Field Shift: crop-stress and rotation decision support on NASA data. Built with AI assistance (Claude Code)."
+  "description": "Croppy: crop-stress and rotation decision support on NASA data. Built with AI assistance (Claude Code)."
 }

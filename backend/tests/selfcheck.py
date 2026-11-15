@@ -270,7 +270,7 @@ def check_polygon():
         refused(g)
     at = lambda x, y, w=0.02, h=0.02: {"type": "Polygon", "coordinates": [[[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]]]}
     for g in (at(10, 23), at(60, -75), at(-140, 30), at(45.99, 48), at(87.99, 48), at(62, 39.99), at(62, 55.99)):   # Sahara, Antarctica, ocean, the box edges
-        assert refused(g) == "Field Shift only covers Kazakhstan. Draw the field inside Kazakhstan.", g
+        assert refused(g) == "Croppy only covers Kazakhstan. Draw the field inside Kazakhstan.", g
     A.validate(at(46, 40)), A.validate(at(87.98, 55.98))
     for g in (at(50, 45, 35, 0.00002), at(62, 53, 0.51, 0.0005), at(62, 53, 0.0005, 0.31)):                    # long thin strips of a few hectares
         assert refused(g) == "The outline spans more than about 30 km. Outline a single field.", g
