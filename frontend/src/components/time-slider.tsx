@@ -70,7 +70,7 @@ export function TimeSlider({
   const year = +date.slice(0, 4)
   const days = daysIn(year)
   const index = dayIndex(date)
-  // While dragging only the label follows; tiles load on release.
+  // While dragging, the label follows every move and the map follows a few times a second.
   const [draft, setDraft] = useState<number | null>(null)
   const [playing, setPlaying] = useState(false)
   const shown = draft === null ? date : dayOf(year, draft)
@@ -80,6 +80,7 @@ export function TimeSlider({
     live.current = { date, ready, step, onChange, stepMs }
   })
   const since = useRef(0)
+  const lastDrag = useRef(0)
   useEffect(() => {
     since.current = performance.now()
   }, [date])
@@ -174,7 +175,15 @@ export function TimeSlider({
           max={days - 1}
           step={1}
           value={[draft ?? index]}
-          onValueChange={([v]) => setDraft(v)}
+          onValueChange={([v]) => {
+            setDraft(v)
+            // the map follows the drag, at most every 100 ms
+            const now = performance.now()
+            if (now - lastDrag.current > 100) {
+              lastDrag.current = now
+              onChange(dayOf(year, v))
+            }
+          }}
           onValueCommit={([v]) => {
             setDraft(null)
             onChange(dayOf(year, v))

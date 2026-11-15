@@ -8,6 +8,12 @@ import "./index.css"
 import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
 
+// Keeps NASA map tiles in the browser so the time slider can revisit dates instantly (public/sw.js).
+if ("serviceWorker" in navigator)
+  navigator.serviceWorker
+    .register(`${import.meta.env.BASE_URL}sw.js`)
+    .catch(() => {})
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider defaultTheme="light">
