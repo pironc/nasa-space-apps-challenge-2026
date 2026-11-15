@@ -2,7 +2,7 @@
 
 `croppy-demo.webm`: 29 seconds, 1920x1080, VP9, silent. A screen capture of the app with text cards, in the Space Apps pitch order: who we are, the challenge and why, Croppy, how it works, what it could do next.
 
-It was assembled with an AI coding assistant (Claude Code, by Anthropic), so, as the Space Apps rules ask, every frame carries a visible watermark ("AI-assisted: app code and this video made with Claude Code (Anthropic)") and the file's title and comment metadata say the same. The watermark is the `.ai` element in `render/film.html`.
+It was assembled with an AI coding assistant (Claude Code, by Anthropic), so, as the Space Apps rules ask, every frame carries a visible watermark, "AI-assisted (code, video, docs)" in the top right corner, and the file's comment metadata names the tool. The watermark is the `.ai` element in `render/film.html`.
 
 ## How it is made
 

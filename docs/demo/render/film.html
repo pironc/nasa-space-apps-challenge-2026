@@ -25,7 +25,7 @@ html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0c162
 .ramp div { display: flex; width: 520px; height: 16px; border-radius: 4px; overflow: hidden }
 .ramp div span { flex: 1 }
 /* Space Apps rule: SI-assisted video carries a visible watermark, on every frame */
-.ai { position: absolute; right: 28px; bottom: 22px; z-index: 9; padding: 8px 16px; border-radius: 999px; background: #0c1626d9; border: 1px solid #ffffff40; font-size: 22px; font-weight: 550; color: #e6edf6 }
+.ai { position: absolute; right: 32px; top: 28px; z-index: 9; padding: 5px 12px; border-radius: 999px; border: 1px solid #ffffff2e; font-size: 18px; font-weight: 500; color: #ffffffa6 }
 </style>
 <body>
 <div id="intro" class="scene"><div class="title">
@@ -81,7 +81,7 @@ html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0c162
   <div class="meta">Built on free NASA data: MODIS · POWER · SMAP · GIBS, with Copernicus Sentinel-2 (ESA)<br>Croppy · Team pironc · NASA Space Apps Challenge 2026</div>
 </div></div>
 
-<div class="ai">AI-assisted: app code and this video made with Claude Code (Anthropic)</div>
+<div class="ai">AI-assisted (code, video, docs)</div>
 
 <script>
 const RAMP = ["#d8c3a5","#e3d7a3","#e6e59a","#c7de86","#a2cf72","#78bb5e","#4fa34a","#2a8738","#0e6a27"]
@@ -98,8 +98,6 @@ window.render = (t) => {
     const el = document.getElementById(id)
     const o = clamp(a === 0 ? 1 : (t - a) / FADE) * clamp(b === DURATION ? 1 : (b - t) / FADE)
     el.style.opacity = t >= a && t < b ? o : 0
-    const img = el.querySelector("img.app")
-    if (img) img.style.transform = `scale(${1 + 0.05 * clamp((t - a) / (b - a))})`
     if (id === "passes" && t >= a && t < b) {
       const i = Math.min(PAIRS.length - 1, Math.floor(((t - a) / (b - a)) * PAIRS.length))
       const [x, y] = PAIRS[i]
