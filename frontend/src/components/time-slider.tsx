@@ -49,7 +49,7 @@ type Props = {
   blend?: { a: string; b: string | null; t: number } | null
   /** Clear Sentinel-2 passes over the selected field, drawn as ticks on the track. */
   sceneDates: string[]
-  /** The vegetation layer is on, so its 16-day period is worth naming. */
+  /** The vegetation layer is on, so its composite is worth naming. */
   vegetation: boolean
   /** Play started or stopped: the map glides between days while playing, and jumps while scrubbing. */
   onPlaying?: (playing: boolean) => void
@@ -125,7 +125,7 @@ export function TimeSlider({
           )}
           {vegetation && (
             <div className="text-xs text-pretty text-muted-foreground tabular-nums">
-              Vegetation: 16-day period from {formatDate(snapDate(shown))}
+              Vegetation: best of the 16 days from {formatDate(snapDate(shown))}
             </div>
           )}
         </div>

@@ -51,7 +51,7 @@ function visibleTiles(map: MapRef, maxzoom: number) {
 
 /**
  * Once the map has settled, asks the tile worker (public/sw.js) to fetch, for the tiles in view only,
- * the other dates the time slider is likely to visit: every 16-day vegetation period of the year, and
+ * the other dates the time slider is likely to visit: every vegetation composite of the year, and
  * the days around the current one for daily layers, and the year's clear Sentinel-2 passes over the
  * selected field. Moving the slider then reads tiles from the browser.
  */
@@ -100,7 +100,6 @@ export function Prefetch({
       for (const l of LAYERS) {
         if (!layers[l.id].on || l.id === "scene" || l.id === "satellite")
           continue
-        if (l.maxView !== undefined && zoom >= l.maxView) continue // hidden at this zoom: nothing to fetch
         const y = +date.slice(0, 4)
         const days = l.period
           ? // the whole year, and the periods either side of New Year that blending reaches

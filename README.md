@@ -62,7 +62,7 @@ No API keys are needed for anything.
 ## Data and credits
 
 - **NASA POWER.** The data was obtained from National Aeronautics and Space Administration (NASA) Langley Research Center's Prediction Of Worldwide Energy Resources (POWER) project funded through the NASA Earth Science Division. The data was obtained from the POWER Project's Daily 2.10.3 version in November 2026.
-- **NASA GIBS and MODIS.** We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS). Layers: MODIS Terra corrected reflectance and 16-day NDVI, SMAP L4 root-zone soil moisture, GPM IMERG precipitation rate. Field statistics use the MODIS MOD13Q1 v6.1 vegetation index product.
+- **NASA GIBS and MODIS.** We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS). Layers: MODIS Terra corrected reflectance, MODIS Terra and Aqua 16-day NDVI, SMAP L4 root-zone soil moisture, GPM IMERG precipitation rate. Field statistics use the MODIS MOD13Q1 v6.1 vegetation index product.
 - **Sentinel-2.** Contains modified Copernicus Sentinel data 2018-2026.
 - **Satellite mosaic.** EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2017-2025), CC BY-NC-SA 4.0.
 - **Base map.** OpenFreeMap © OpenMapTiles, data from OpenStreetMap contributors.

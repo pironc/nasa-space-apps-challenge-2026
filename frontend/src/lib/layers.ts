@@ -18,8 +18,6 @@ export type MapLayer = {
   /** Tile URL for a date. The field image is built from a Sentinel-2 scene instead (sceneTiles). */
   tiles: (date: string) => string
   maxzoom: number
-  /** Hidden from this zoom in: coarse regional layers would cover the field imagery. */
-  maxView?: number
   legend?: string
   /** Plain-language reading of the colour scale. */
   scale?: string
@@ -28,18 +26,16 @@ export type MapLayer = {
   since: number
   /** Changes every day. */
   daily?: boolean
-  /** Changes every 16 days: the map fades from one period to the next as the days pass. */
+  /** A composite published every 8 days: the map fades from one to the next as the days pass. */
   period?: boolean
   on: boolean
   opacity: number
 }
 
 const GIBS_CREDIT = "Imagery: NASA GIBS / ESDIS"
-/** Regional layers stop here; closer in, the satellite images of the field take over. */
-const REGIONAL_MAX_VIEW = 11
 
 // Array order is draw order, bottom to top: the yearly mosaic is the base, regional NASA layers sit
-// above it (and stop at field zoom), and the dated image of the selected field is on top.
+// above it, and the dated Sentinel-2 image around the selected field is on top.
 export const LAYERS: MapLayer[] = [
   {
     id: "satellite",
@@ -59,18 +55,25 @@ export const LAYERS: MapLayer[] = [
   {
     id: "ndvi",
     label: "Vegetation (NDVI)",
-    source: "NASA MODIS Terra, 16-day",
-    hint: "Regional greenness at 250 m, hidden when zoomed in on a field. It reads higher than the field chart (Sentinel-2).",
-    tiles: (d) => gibs("MODIS_Terra_L3_NDVI_16Day", snapDate(d), 9, "png"),
+    source: "NASA MODIS Terra and Aqua, every 8 days",
+    hint: "Greenness at 250 m, the best of 16 days of passes, so clouds are left out. Terra and Aqua take turns, so a new picture comes every 8 days. It reads higher than the field chart (Sentinel-2).",
+    tiles: (d) => {
+      const p = snapDate(d)
+      return gibs(
+        `MODIS_${isAqua(p) ? "Aqua" : "Terra"}_L3_NDVI_16Day`,
+        p,
+        9,
+        "png"
+      )
+    },
     period: true,
     maxzoom: 9,
-    maxView: REGIONAL_MAX_VIEW,
     legend: `${LEGENDS}/MODIS_L3_NDVI_H.svg`,
     scale:
       "Brown is bare or dry ground (below 0.3), darker green is denser green cover (up to 1).",
     attribution: GIBS_CREDIT,
     since: 2001,
-    on: true,
+    on: false,
     opacity: 0.85,
   },
   {
@@ -81,7 +84,6 @@ export const LAYERS: MapLayer[] = [
     tiles: (d) =>
       gibs("MODIS_Terra_CorrectedReflectance_TrueColor", d, 9, "jpg"),
     maxzoom: 9,
-    maxView: REGIONAL_MAX_VIEW,
     attribution: GIBS_CREDIT,
     since: 2001,
     daily: true,
@@ -95,7 +97,6 @@ export const LAYERS: MapLayer[] = [
     hint: "Modelled soil wetness for the surrounding area (top metre, about 9 km), not your field.",
     tiles: (d) => gibs("SMAP_L4_Analyzed_Root_Zone_Soil_Moisture", d, 6, "png"),
     maxzoom: 6,
-    maxView: REGIONAL_MAX_VIEW,
     legend: `${LEGENDS}/SMAP_Analyzed_Soil_Moisture_H.svg`,
     scale:
       "Orange is dry, green to blue is wet (0 to 0.7 m³ of water per m³ of soil).",
@@ -112,7 +113,6 @@ export const LAYERS: MapLayer[] = [
     hint: "A daily mean rain rate, not a rain total.",
     tiles: (d) => gibs("IMERG_Precipitation_Rate", d, 6, "png"),
     maxzoom: 6,
-    maxView: REGIONAL_MAX_VIEW,
     legend: `${LEGENDS}/GPM_Precipitation_Rate_H.svg`,
     scale:
       "Green is light rain, red is heavy (0.1 to 53 mm per hour). Purple tones are snow.",
@@ -126,7 +126,7 @@ export const LAYERS: MapLayer[] = [
     id: "scene",
     label: "Satellite image of the day",
     source: "Sentinel-2, 10 m, when clear",
-    hint: "The area around the selected field as Sentinel-2 saw it, fading from one clear pass over the field to the next. Zoom in to see it.",
+    hint: "The area around the selected field as Sentinel-2 saw it, at 10 m, fading from one clear pass over the field to the next (every 2 to 5 days in the growing season). Zoom in to see it.",
     tiles: () => "",
     maxzoom: 15,
     attribution:
@@ -170,7 +170,7 @@ export function sceneBlend(dates: string[], day: string): Blend | null {
   return { a, b: next, t: since / span }
 }
 
-/** The map's main view, picked on the map: one regional NASA layer (or none) over the mosaic, the satellite image of the day closer in. */
+/** The map's main view, picked on the map: the Sentinel-2 image of the day, or one NASA layer, over the yearly mosaic. */
 export const VIEWS = [
   { id: "imagery", label: "Imagery", short: "Imagery", layer: null },
   { id: "vegetation", label: "Vegetation", short: "Vegetation", layer: "ndvi" },
@@ -189,23 +189,23 @@ export const VIEWS = [
   short: string
   layer: LayerId | null
 }[]
-const REGIONAL: LayerId[] = ["ndvi", "truecolor", "soil", "rain"]
+const DATED: LayerId[] = ["scene", "ndvi", "truecolor", "soil", "rain"]
+const viewLayer = (v: (typeof VIEWS)[number]) => v.layer ?? "scene"
 
 /** The view the layer switches add up to, or "" when they match none (set by hand in the sidebar). */
 export const viewOf = (s: LayerState) => {
-  const on = REGIONAL.filter((id) => s[id].on)
+  const on = DATED.filter((id) => s[id].on)
   return (
-    (on.length <= 1 && VIEWS.find((v) => v.layer === (on[0] ?? null))?.id) || ""
+    (on.length === 1 && VIEWS.find((v) => viewLayer(v) === on[0])?.id) || ""
   )
 }
 
-/** Layer switches for a view: the mosaic and the image of the day stay on, one regional layer at most. */
+/** Layer switches for a view: that one layer over the mosaic, every other dated layer off. */
 export const withView = (s: LayerState, view: string): LayerState => {
-  const layer = VIEWS.find((v) => v.id === view)?.layer ?? null
-  const next = { ...s }
-  for (const id of REGIONAL) next[id] = { ...s[id], on: id === layer }
-  next.satellite = { ...s.satellite, on: true }
-  next.scene = { ...s.scene, on: true }
+  const v = VIEWS.find((v) => v.id === view)
+  const next = { ...s, satellite: { ...s.satellite, on: true } }
+  for (const id of DATED)
+    next[id] = { ...s[id], on: !!v && id === viewLayer(v) }
   return next
 }
 
@@ -221,12 +221,14 @@ export const defaultLayerState = () =>
 
 // --- Time axis -------------------------------------------------------------
 // The slider moves day by day. Each layer shows what exists for that day: the daily NASA layers
-// change every day, the vegetation composite every 16 days (periods restart on 1 January), and
-// the field image on each clear Sentinel-2 pass.
+// change every day, the vegetation composites every 8 days, and the Sentinel-2 image on each clear
+// pass. MODIS vegetation composites span 16 days and restart on 1 January: Terra's start on days
+// 1, 17, 33..., Aqua's (from 4 July 2002) on days 9, 25, 41..., so together a new one starts every 8 days.
 
 export const FIRST_YEAR = 2001
-/** Last 16-day NDVI composite published by GIBS when this was written. */
-const LAST_NDVI = "2026-10-16"
+/** Last vegetation composite (Aqua) published by GIBS when this was written. */
+const LAST_NDVI = "2026-10-24"
+const FIRST_AQUA = "2002-07-04"
 const DAY = 86_400_000
 const iso = (t: number) => new Date(t).toISOString().slice(0, 10)
 /** Daily NASA layers are published a day or two late. */
@@ -237,14 +239,18 @@ export const YEARS = Array.from(
   (_, i) => LAST_YEAR - i
 )
 
+/** Start dates of the year's vegetation composites, Terra and Aqua interleaved, 8 days apart. */
 export function periodDates(year: number): string[] {
   const jan1 = Date.UTC(year, 0, 1)
-  return Array.from({ length: 23 }, (_, k) => iso(jan1 + k * 16 * DAY)).filter(
-    (d) => d <= LAST_NDVI
+  return Array.from({ length: 46 }, (_, k) => iso(jan1 + k * 8 * DAY)).filter(
+    (d) => d <= LAST_NDVI && (!isAqua(d) || d >= FIRST_AQUA)
   )
 }
 
-/** Snap any ISO date to the 16-day vegetation period that contains it. */
+/** Composites starting on days 9, 25, 41... of the year are Aqua's. */
+const isAqua = (d: string) => dayIndex(d) % 16 === 8
+
+/** Snap any ISO date to the latest vegetation composite starting on or before it. */
 export function snapDate(day: string): string {
   const year = Math.min(
     +LAST_NDVI.slice(0, 4),
@@ -319,21 +325,41 @@ export function selfCheck() {
   const on = LAYERS.filter((l) => l.on)
     .map((l) => l.id)
     .join()
-  if (on !== "satellite,ndvi,scene") throw new Error(`on by default: ${on}`)
+  if (on !== "satellite,scene") throw new Error(`on by default: ${on}`)
   if (
-    snapDate("2021-07-20") !== "2021-07-12" ||
-    snapDate("2021-01-01") !== "2021-01-01"
+    snapDate("2021-07-19") !== "2021-07-12" ||
+    snapDate("2021-07-20") !== "2021-07-20" ||
+    snapDate("2021-01-01") !== "2021-01-01" ||
+    snapDate("2002-01-12") !== "2002-01-01" // no Aqua before July 2002
   )
     throw new Error("snapDate")
-  const pb = periodBlend("2021-07-20")
+  const ndvi = LAYERS.find((l) => l.id === "ndvi")!
   if (
-    pb.a !== "2021-07-12" ||
+    !ndvi
+      .tiles("2021-07-12")
+      .includes("MODIS_Terra_L3_NDVI_16Day/default/2021-07-12")
+  )
+    throw new Error("Terra composite")
+  if (
+    !ndvi
+      .tiles("2021-07-23")
+      .includes("MODIS_Aqua_L3_NDVI_16Day/default/2021-07-20")
+  )
+    throw new Error("Aqua composite")
+  if (
+    periodDates(2021).length !== 46 ||
+    periodDates(2021).at(-1) !== "2021-12-27"
+  )
+    throw new Error("composites per year")
+  const pb = periodBlend("2021-07-24")
+  if (
+    pb.a !== "2021-07-20" ||
     pb.b !== "2021-07-28" ||
-    pb.c !== "2021-08-13" ||
+    pb.c !== "2021-08-05" ||
     pb.t !== 0.5
   )
     throw new Error("periodBlend")
-  if (periodBlend("2021-12-25").b !== "2022-01-01")
+  if (periodBlend("2021-12-29").b !== "2022-01-01")
     throw new Error("periodBlend across the year")
   if (
     dayIndex("2021-01-01") !== 0 ||
@@ -360,9 +386,9 @@ export function selfCheck() {
     throw new Error("no blend over a long gap")
   if (at("2021-09-01") !== "null") throw new Error("too old to show")
   const base = defaultLayerState()
-  if (viewOf(base) !== "vegetation") throw new Error("default view")
+  if (viewOf(base) !== "imagery") throw new Error("default view")
   const rain = withView(base, "rain")
-  if (viewOf(rain) !== "rain" || rain.ndvi.on || !rain.scene.on)
+  if (viewOf(rain) !== "rain" || rain.scene.on || !rain.satellite.on)
     throw new Error("withView")
   if (viewOf({ ...rain, ndvi: { on: true, opacity: 1 } }) !== "")
     throw new Error("mixed layers match no view")
