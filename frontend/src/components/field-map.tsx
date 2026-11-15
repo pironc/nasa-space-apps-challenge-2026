@@ -28,7 +28,15 @@ import {
   type RotationId,
   type SavedField,
 } from "@/lib/fields"
-import { BASEMAP, LAYERS, sceneTiles, type LayerState } from "@/lib/layers"
+import { framedYears, type Blend, type Frames } from "@/lib/frames"
+import {
+  BASEMAP,
+  LAYERS,
+  periodBlend,
+  sceneTiles,
+  type LayerState,
+} from "@/lib/layers"
+import { FieldFrames } from "@/map/FieldFrames"
 import { RasterLayer } from "@/map/RasterLayer"
 import { useFieldDraw } from "@/map/useFieldDraw"
 
@@ -289,6 +297,11 @@ type Props = {
   /** Sentinel-2 scene ids of the field image: the one to show, then the next ones to preload. */
   scene: string | null
   nextScenes: string[]
+  /** Saved images of the selected demo field, and how to blend them for the day. */
+  frames: Frames | null
+  blend: Blend | null
+  /** Opacity changes glide over this many ms: the length of one play step. */
+  glide: number
   onReady: (id: string, ready: boolean) => void
   layers: LayerState
   fields: SavedField[]
@@ -303,6 +316,9 @@ export function FieldMap({
   nextDates,
   scene,
   nextScenes,
+  frames,
+  blend,
+  glide,
   onReady,
   layers,
   fields,
@@ -336,35 +352,69 @@ export function FieldMap({
       maxZoom={16}
       attributionControl={{ compact: true }}
     >
-      {LAYERS.filter((l) => l.id !== "scene").map((l) => (
-        <RasterLayer
-          key={l.id}
-          id={l.id}
-          tiles={l.tiles(date)}
-          next={nextDates.map((d) => l.tiles(d))}
-          visible={layers[l.id].on && year >= l.since}
-          opacity={layers[l.id].opacity}
-          maxzoom={l.maxzoom}
-          maxView={l.maxView}
-          attribution={l.attribution}
-          onReady={onReady}
-        />
-      ))}
-      {/* The selected field as Sentinel-2 saw it: only around the field, only when zoomed in. */}
-      {selectedField && (
-        <RasterLayer
-          key={selectedField.id}
-          id="scene"
-          tiles={scene && sceneTiles(scene)}
-          next={nextScenes.map(sceneTiles)}
-          visible={layers.scene.on && !!scene}
+      {LAYERS.filter((l) => l.id !== "scene").map((l) => {
+        const common = {
+          id: l.id,
+          visible: layers[l.id].on && year >= l.since,
+          opacity: layers[l.id].opacity,
+          maxzoom: l.maxzoom,
+          maxView: l.maxView,
+          attribution: l.attribution,
+          onReady,
+        }
+        if (l.period) {
+          // fades from one 16-day period to the next as the days pass
+          const p = periodBlend(date)
+          return (
+            <RasterLayer
+              key={l.id}
+              {...common}
+              tiles={l.tiles(p.a)}
+              blendTo={l.tiles(p.b)}
+              blend={p.t}
+              next={[l.tiles(p.c)]}
+              glide={glide}
+            />
+          )
+        }
+        return (
+          <RasterLayer
+            key={l.id}
+            {...common}
+            tiles={l.tiles(date)}
+            next={nextDates.map((d) => l.tiles(d))}
+            glide={l.daily ? glide : 0}
+          />
+        )
+      })}
+      {/* The selected field as Sentinel-2 saw it: saved images, blended day by day, for the demo years;
+          otherwise the nearest clear image, rendered live around the field. */}
+      {selectedField && frames && framedYears(frames).has(year) ? (
+        <FieldFrames
+          fieldId={selectedField.id}
+          frames={frames}
+          year={year}
+          blend={blend}
+          visible={layers.scene.on}
           opacity={layers.scene.opacity}
-          maxzoom={15}
-          minzoom={10}
-          bounds={padded(bounds(selectedField.geometry), 0.08)}
-          attribution={LAYERS.find((l) => l.id === "scene")!.attribution}
-          onReady={onReady}
+          glide={glide}
         />
+      ) : (
+        selectedField && (
+          <RasterLayer
+            key={selectedField.id}
+            id="scene"
+            tiles={scene && sceneTiles(scene)}
+            next={nextScenes.map(sceneTiles)}
+            visible={layers.scene.on && !!scene}
+            opacity={layers.scene.opacity}
+            maxzoom={15}
+            minzoom={10}
+            bounds={padded(bounds(selectedField.geometry), 0.08)}
+            attribution={LAYERS.find((l) => l.id === "scene")!.attribution}
+            onReady={onReady}
+          />
+        )
       )}
       <MapGeoJSON
         data={data}

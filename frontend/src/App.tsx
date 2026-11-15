@@ -21,6 +21,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { loadPresets, midJuly, useAnalysis, type Declared } from "@/lib/data"
+import { blendFor, framedYears, useFrames } from "@/lib/frames"
 import {
   presetToField,
   useSavedFields,
@@ -32,14 +33,14 @@ import {
   clampDay,
   DEFAULT_DATE,
   defaultLayerState,
-  LAYERS,
-  periodDates,
   type LayerId,
   type LayerState,
 } from "@/lib/layers"
 
 /** The field image for a day: the latest clear pass on or before it, at most this many days old. */
 const SCENE_MAX_AGE = 30
+/** One play step: a day of the season every this many ms, with the map gliding between days. */
+const STEP_MS = 180
 
 const query = new URLSearchParams(location.search)
 const tabOf = (q: URLSearchParams) =>
@@ -84,30 +85,28 @@ export function App() {
       ) ?? null,
     [scenes]
   )
-  // Play moves to the next day something visible changes: every day with a daily layer on,
-  // otherwise the next field image or vegetation period. It loops within the year.
-  const step = useCallback(
-    (d: string) => {
-      const y = +d.slice(0, 4)
-      const daily = LAYERS.some((l) => l.daily && layers[l.id].on)
-      let n = addDays(d, 1)
-      if (!daily) {
-        const options = [
-          layers.ndvi.on && periodDates(y).find((p) => p > d),
-          layers.scene.on && scenes.find((s) => s.date > d)?.date,
-        ].filter((x): x is string => !!x)
-        n = options.length ? options.sort()[0] : addDays(d, 16)
-      }
-      return n.startsWith(String(y)) && clampDay(n) === n ? n : `${y}-01-01`
-    },
-    [layers, scenes]
-  )
+  // Play moves one day at a time and loops within the year.
+  const step = useCallback((d: string) => {
+    const n = addDays(d, 1)
+    return n.startsWith(d.slice(0, 4)) && clampDay(n) === n
+      ? n
+      : `${d.slice(0, 4)}-01-01`
+  }, [])
+  // Saved images of a demo field: blended day by day from local files.
+  const frames = useFrames(selected?.id ?? null, !!selected?.preset)
+  const framed = !!frames && framedYears(frames).has(year)
+  const blend =
+    framed && selected && layers.scene.on
+      ? blendFor(frames!.frames, date)
+      : null
   const nextDates = useMemo(() => {
     const a = step(date)
     return [a, step(a)]
   }, [date, step])
   const scene =
-    selected && layers.scene.on && year >= 2018 ? sceneFor(date) : undefined
+    selected && layers.scene.on && year >= 2018 && !framed
+      ? sceneFor(date)
+      : undefined
   const nextScenes = nextDates
     .map(sceneFor)
     .filter((s) => !!s)
@@ -262,6 +261,9 @@ export function App() {
             nextDates={nextDates}
             scene={scene?.item ?? null}
             nextScenes={nextScenes}
+            frames={frames}
+            blend={blend}
+            glide={STEP_MS}
             onReady={onReady}
             layers={layers}
             fields={fields}
@@ -289,8 +291,10 @@ export function App() {
               date={date}
               onChange={setDate}
               step={step}
+              stepMs={STEP_MS}
               ready={ready}
               scene={scene}
+              blend={framed && selected && layers.scene.on ? blend : undefined}
               sceneDates={layers.scene.on ? scenes.map((s) => s.date) : []}
               vegetation={layers.ndvi.on}
             />
