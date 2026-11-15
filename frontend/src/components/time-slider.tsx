@@ -53,6 +53,8 @@ type Props = {
   sceneDates: string[]
   /** The vegetation layer is on, so its 16-day period is worth naming. */
   vegetation: boolean
+  /** Play started or stopped: the map glides between days while playing, and jumps while scrubbing. */
+  onPlaying?: (playing: boolean) => void
 }
 
 /** Moves through one year day by day; each layer shows what exists for that day. */
@@ -66,11 +68,12 @@ export function TimeSlider({
   blend,
   sceneDates,
   vegetation,
+  onPlaying,
 }: Props) {
   const year = +date.slice(0, 4)
   const days = daysIn(year)
   const index = dayIndex(date)
-  // While dragging, the label follows every move and the map follows a few times a second.
+  // While dragging, the map follows every move.
   const [draft, setDraft] = useState<number | null>(null)
   const [playing, setPlaying] = useState(false)
   const shown = draft === null ? date : dayOf(year, draft)
@@ -80,7 +83,6 @@ export function TimeSlider({
     live.current = { date, ready, step, onChange, stepMs }
   })
   const since = useRef(0)
-  const lastDrag = useRef(0)
   useEffect(() => {
     since.current = performance.now()
   }, [date])
@@ -94,6 +96,8 @@ export function TimeSlider({
     }, 30)
     return () => clearInterval(t)
   }, [playing])
+
+  useEffect(() => onPlaying?.(playing), [playing, onPlaying])
 
   const ticks = sceneDates.filter((d) => d.startsWith(String(year)))
 
@@ -176,13 +180,9 @@ export function TimeSlider({
           step={1}
           value={[draft ?? index]}
           onValueChange={([v]) => {
+            // the map follows every move: each day is a change of opacity, not a download
             setDraft(v)
-            // the map follows the drag, at most every 100 ms
-            const now = performance.now()
-            if (now - lastDrag.current > 100) {
-              lastDrag.current = now
-              onChange(dayOf(year, v))
-            }
+            onChange(dayOf(year, v))
           }}
           onValueCommit={([v]) => {
             setDraft(null)
