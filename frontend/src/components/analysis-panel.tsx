@@ -147,7 +147,7 @@ export function AnalysisPanel({
       )}
       <header className="flex flex-col gap-3 @2xl:flex-row @2xl:items-start @2xl:justify-between">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="text-2xl leading-tight font-semibold text-balance [overflow-wrap:anywhere]">
+          <h2 className="text-lg leading-tight font-semibold tracking-tight text-balance [overflow-wrap:anywhere]">
             {field.name}
           </h2>
           <p className="text-sm text-muted-foreground tabular-nums">
