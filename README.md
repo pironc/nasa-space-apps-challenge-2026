@@ -80,9 +80,16 @@ Frontend: React, Vite, TypeScript, Tailwind CSS, shadcn/ui (Radix UI), mapcn, Ma
 ## Use of AI tools
 
 - The team chose the challenge, the region and the product direction, and made the design decisions.
-- The code, the research notes in `docs/research/` and the plan review were written with an AI coding assistant (Claude Code, Anthropic) under the team's direction. The notes mark what was verified by running it and what is unverified recall.
-- No AI model runs inside the app. All findings and rotation scores come from fixed rules.
-- No AI-generated images, video or audio are used. The demo video (`docs/demo/croppy-demo.webm`) is a screen capture of the app with text cards, put together by a script written with the AI assistant.
+Space Apps allows Super Intelligence (SI) tools and asks teams to say where and how they were used. This is where.
+
+- **Code.** The frontend, the backend and the scripts were written with an AI coding assistant (Claude Code, by Anthropic) under the team's direction. The package descriptions (`frontend/package.json`, `backend/pyproject.toml`) and the page's `ai-assistance` meta tag say so, and so does the "About the data" dialog in the app.
+- **Data.** The demo field files (`frontend/public/presets/`) are computed from NASA and ESA data by that AI-assisted code. No value in them was written by hand or by an AI model.
+- **Text.** The research notes in `docs/research/`, the plan review and this README were drafted with the same assistant. The notes mark what was verified by running it and what is unverified recall.
+- **Video.** The demo video (`docs/demo/croppy-demo.webm`) is a screen capture of the real app with text cards, assembled by a script written with the assistant. It carries a visible watermark on every frame ("AI-assisted: app code and this video made with Claude Code (Anthropic)") and says the same in its file metadata. Its source is in `docs/demo/render/`.
+- **No generated imagery or audio.** Every image is a capture of the app or of satellite data. There is no audio.
+- **No AI in the app.** All findings and rotation scores come from fixed rules (`backend/app/`, `frontend/src/lib/rotation.ts`), not from a model.
+- **Branding.** No NASA logo, flag or mission insignia is used anywhere.
+- The team chose the challenge, the region and the product direction, and made the design decisions.
 
 ## Repository
 

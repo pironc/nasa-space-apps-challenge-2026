@@ -21,5 +21,5 @@ for (let f = 0; f < N; f++) {
 }
 fs.closeSync(fd)
 // the browser tools' ffmpeg reads no pipe: it reads the frames as one concatenated JPEG stream
-const ff = spawn(process.env.FFMPEG || 'ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-c:v', 'mjpeg', '-framerate', String(FPS), '-i', frames, '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '28', '-deadline', 'good', '-cpu-used', '3', '-row-mt', '1', '-pix_fmt', 'yuv420p', out], { stdio: 'inherit' })
+const ff = spawn(process.env.FFMPEG || 'ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-c:v', 'mjpeg', '-framerate', String(FPS), '-i', frames, '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '28', '-deadline', 'good', '-cpu-used', '3', '-row-mt', '1', '-pix_fmt', 'yuv420p', '-metadata', 'title=Croppy demo, NASA Space Apps Challenge 2026', '-metadata', 'comment=Screen capture of the Croppy app with text cards. AI-assisted: the app code and this video were made with Claude Code (Anthropic), under the team direction.', out], { stdio: 'inherit' })
 await new Promise((r) => ff.on('close', r)); await b.close(); console.log('frames', N)
