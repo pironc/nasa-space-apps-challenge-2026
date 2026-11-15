@@ -1,0 +1,9 @@
+{
+  "name": "croppy-demo-render",
+  "private": true,
+  "description": "Renders the Croppy demo video from screenshots of the app and text cards.",
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "1.65.1"
+  }
+}

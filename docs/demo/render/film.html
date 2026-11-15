@@ -1,0 +1,112 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: Geist; src: url(../../../frontend/node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2) format("woff2"); font-weight: 100 900; }
+* { box-sizing: border-box; margin: 0 }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0c1626; font-family: Geist, sans-serif; color: #fff }
+.scene { position: absolute; inset: 0; opacity: 0 }
+.band { position: absolute; left: 0; right: 0; top: 0; height: 168px; padding: 30px 80px 0; background: #0c1626; z-index: 2 }
+.band h2 { font-size: 50px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.1 }
+.band p { margin-top: 12px; font-size: 28px; color: #a9bbd3; font-weight: 450 }
+.stage { position: absolute; left: 0; right: 0; top: 168px; bottom: 0; overflow: hidden; display: grid; place-items: center }
+.stage img.app { height: 900px; width: 1600px; object-fit: cover; border-radius: 14px; box-shadow: 0 10px 40px #0008; transform-origin: var(--o, 70% 40%) }
+.title { display: flex; flex-direction: column; justify-content: center; padding: 0 160px; gap: 26px; height: 100% }
+.title .name { font-size: 150px; font-weight: 750; letter-spacing: -0.03em; line-height: 1 }
+.title .name span { color: #5b9be6 }
+.title .q { font-size: 54px; font-weight: 550; color: #e6edf6 }
+.title .meta { font-size: 30px; color: #a9bbd3; line-height: 1.5; margin-top: 18px }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; padding: 0 60px; width: 100% }
+.pane { display: flex; flex-direction: column; gap: 14px }
+.pane .lab { display: flex; justify-content: space-between; align-items: baseline; font-size: 34px; font-weight: 650 }
+.pane .lab small { font-size: 30px; font-weight: 500; color: #a9bbd3 }
+.crop { width: 100%; aspect-ratio: 1178 / 800; overflow: hidden; border-radius: 12px; position: relative }
+.crop img { position: absolute; width: 217.3%; left: -58.7%; top: -35%; }
+.ramp { display: flex; align-items: center; gap: 14px; justify-content: center; font-size: 24px; color: #a9bbd3; margin-top: 18px }
+.ramp div { display: flex; width: 520px; height: 16px; border-radius: 4px; overflow: hidden }
+.ramp div span { flex: 1 }
+</style>
+<body>
+<div id="intro" class="scene"><div class="title">
+  <div class="meta" style="font-size:44px;color:#e6edf6;margin:0">Cyprien Piron · Team pironc</div>
+  <div class="meta" style="margin:0">NASA Space Apps Challenge 2026</div>
+</div></div>
+
+<div id="lead" class="scene"><div class="title">
+  <div class="meta" style="margin:0">Our challenge</div>
+  <div class="q" style="font-size:64px">Field Shift: Adapting Farms with NASA Data</div>
+  <div class="meta" style="font-size:36px;color:#e6edf6">Northern Kazakhstan grows about 79% of the country's wheat area.<br>Droughts like 2021 keep coming back, and farmers must choose what to sow.</div>
+</div></div>
+
+<div id="name" class="scene"><div class="title">
+  <div class="name">Croppy<span>.</span></div>
+  <div class="q">Which crop rotation survives the next drought?</div>
+</div></div>
+
+<div id="story" class="scene">
+  <div class="band"><h2>Pick a field: Croppy reads every season from space</h2><p>NASA MODIS since 2000 · Sentinel-2 since 2018 · NASA POWER weather since 1981</p></div>
+  <div class="stage"><img class="app" src="shots/story.jpg" style="--o: 85% 50%"></div>
+</div>
+
+<div id="passes" class="scene">
+  <div class="band"><h2>Same field, same weeks: drought 2021 against wet 2024</h2><p>Field greenness (NDVI) from every clear Sentinel-2 pass, brown bare soil to dark green dense crop</p></div>
+  <div class="stage"><div style="width:100%">
+    <div class="pair">
+      <div class="pane"><div class="lab">2021 · drought <small id="d1"></small></div><div class="crop"><img id="i1"></div></div>
+      <div class="pane"><div class="lab">2024 · wet year <small id="d2"></small></div><div class="crop"><img id="i2"></div></div>
+    </div>
+    <div class="ramp">bare<div id="ramp"></div>dense crop</div>
+  </div></div>
+</div>
+
+<div id="growth" class="scene">
+  <div class="band"><h2>2021 peaked at 0.53 against this field's usual 0.74</h2><p>Each season is judged against the field's own normal, by fixed rules you can read</p></div>
+  <div class="stage"><img class="app" src="shots/growth.jpg" style="--o: 92% 70%"></div>
+</div>
+
+<div id="weather" class="scene">
+  <div class="band"><h2>Why? 45% of normal rain and 43 days above 30 °C</h2><p>NASA POWER weather: a severe drought by this area's own record. NASA SMAP soil moisture on the map</p></div>
+  <div class="stage"><img class="app" src="shots/weather.jpg" style="--o: 92% 40%"></div>
+</div>
+
+<div id="options" class="scene">
+  <div class="band"><h2>Three crop rotations, scored for this field</h2><p>Each with its evidence, what satellites cannot see, and what to check with a local agronomist</p></div>
+  <div class="stage"><img class="app" src="shots/options.jpg" style="--o: 75% 55%"></div>
+</div>
+
+<div id="end" class="scene"><div class="title" style="gap:30px">
+  <div class="meta" style="margin:0">Next</div>
+  <div class="q" style="font-size:66px;line-height:1.15">Any field, anywhere: point farmers to the patches that need a visit, and help every farm choose a rotation that survives the next drought.</div>
+  <div class="meta">Built on free NASA data: MODIS · POWER · SMAP · GIBS, with Copernicus Sentinel-2 (ESA)<br>Croppy · Team pironc · NASA Space Apps Challenge 2026</div>
+</div></div>
+
+<script>
+const RAMP = ["#d8c3a5","#e3d7a3","#e6e59a","#c7de86","#a2cf72","#78bb5e","#4fa34a","#2a8738","#0e6a27"]
+document.getElementById("ramp").innerHTML = RAMP.map((c) => `<span style="background:${c}"></span>`).join("")
+const PAIRS = [["2021-06-05","2024-06-02"],["2021-06-13","2024-06-17"],["2021-06-30","2024-06-19"],["2021-07-03","2024-07-04"],["2021-07-18","2024-07-12"],["2021-08-07","2024-07-29"]]
+const day = (d) => new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })
+// [id, start, end] in seconds; 29 s in all, under the 30 s limit
+const SCENES = [["intro", 0, 2.2], ["lead", 2.2, 5.6], ["name", 5.6, 8.0], ["story", 8.0, 10.8], ["passes", 10.8, 15.6], ["growth", 15.6, 18.4], ["weather", 18.4, 21.2], ["options", 21.2, 23.8], ["end", 23.8, 29.0]]
+const FADE = 0.25
+const clamp = (v) => Math.max(0, Math.min(1, v))
+window.DURATION = 29.0
+window.render = (t) => {
+  for (const [id, a, b] of SCENES) {
+    const el = document.getElementById(id)
+    const o = clamp(a === 0 ? 1 : (t - a) / FADE) * clamp(b === DURATION ? 1 : (b - t) / FADE)
+    el.style.opacity = t >= a && t < b ? o : 0
+    const img = el.querySelector("img.app")
+    if (img) img.style.transform = `scale(${1 + 0.05 * clamp((t - a) / (b - a))})`
+    if (id === "passes" && t >= a && t < b) {
+      const i = Math.min(PAIRS.length - 1, Math.floor(((t - a) / (b - a)) * PAIRS.length))
+      const [x, y] = PAIRS[i]
+      const i1 = document.getElementById("i1"), i2 = document.getElementById("i2")
+      if (!i1.src.endsWith(x + ".jpg")) i1.src = `passes/${x}.jpg`
+      if (!i2.src.endsWith(y + ".jpg")) i2.src = `passes/${y}.jpg`
+      document.getElementById("d1").textContent = day(x)
+      document.getElementById("d2").textContent = day(y)
+    }
+  }
+}
+// preload every image so no frame waits on a decode
+window.ready = Promise.all([...new Set([...PAIRS.flat().map((d) => `passes/${d}.jpg`), ...[...document.images].map((i) => i.getAttribute("src")).filter(Boolean)])].map((s) => new Promise((r) => { const im = new Image(); im.onload = im.onerror = r; im.src = s }))).then(() => document.fonts.ready)
+</script>
