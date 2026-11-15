@@ -11,6 +11,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { FieldMap } from "@/components/field-map"
 import { Button } from "@/components/ui/button"
 import { TimeSlider } from "@/components/time-slider"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   Drawer,
   DrawerContent,
@@ -21,7 +22,6 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { loadPresets, midJuly, useAnalysis, type Declared } from "@/lib/data"
-import { blendFor, framedYears, useFrames } from "@/lib/frames"
 import {
   presetToField,
   useSavedFields,
@@ -33,12 +33,14 @@ import {
   clampDay,
   DEFAULT_DATE,
   defaultLayerState,
+  sceneBlend,
+  viewOf,
+  VIEWS,
+  withView,
   type LayerId,
   type LayerState,
 } from "@/lib/layers"
 
-/** The field image for a day: the latest clear pass on or before it, at most this many days old. */
-const SCENE_MAX_AGE = 30
 /** One play step: a day of the season every this many ms, with the map gliding between days. */
 const STEP_MS = 180
 
@@ -75,16 +77,14 @@ export function App() {
     "narrow"
   )
 
-  // Clear Sentinel-2 passes over the selected field, and the one to show for a day.
+  // Clear Sentinel-2 passes over the selected field: the map fades from one to the next, day by day.
   const scenes = useMemo(
     () => (analysis.status === "ready" ? (analysis.analysis.scenes ?? []) : []),
     [analysis]
   )
-  const sceneFor = useCallback(
-    (d: string) =>
-      scenes.findLast(
-        (s) => s.date <= d && s.date >= addDays(d, -SCENE_MAX_AGE)
-      ) ?? null,
+  const sceneDates = useMemo(() => scenes.map((s) => s.date), [scenes])
+  const itemOf = useMemo(
+    () => Object.fromEntries(scenes.map((s) => [s.date, s.item])),
     [scenes]
   )
   // Play moves one day at a time and loops within the year.
@@ -94,25 +94,14 @@ export function App() {
       ? n
       : `${d.slice(0, 4)}-01-01`
   }, [])
-  // Saved images of a demo field: blended day by day from local files.
-  const frames = useFrames(selected?.id ?? null, !!selected?.preset)
-  const framed = !!frames && framedYears(frames).has(year)
-  const blend =
-    framed && selected && layers.scene.on
-      ? blendFor(frames!.frames, date)
-      : null
   const nextDates = useMemo(() => {
     const a = step(date)
     return [a, step(a)]
   }, [date, step])
-  const scene =
-    selected && layers.scene.on && year >= 2018 && !framed
-      ? sceneFor(date)
-      : undefined
-  const nextScenes = nextDates
-    .map(sceneFor)
-    .filter((s) => !!s)
-    .map((s) => s!.item)
+  const showScene = !!selected && layers.scene.on && year >= 2018
+  const blend = showScene ? sceneBlend(sceneDates, date) : undefined
+  // the pass after the two being blended, loaded ahead so the next fade starts at once
+  const after = blend?.b && sceneDates[sceneDates.indexOf(blend.b) + 1]
   // Play waits until the next frame of every visible layer has loaded.
   const [readyById, setReadyById] = useState<Record<string, boolean>>({})
   const onReady = useCallback(
@@ -266,10 +255,17 @@ export function App() {
           <FieldMap
             date={date}
             nextDates={nextDates}
-            scene={scene?.item ?? null}
-            nextScenes={nextScenes}
-            frames={frames}
-            blend={blend}
+            scene={
+              blend
+                ? {
+                    a: itemOf[blend.a],
+                    b: blend.b && itemOf[blend.b],
+                    t: blend.t,
+                    next: after ? itemOf[after] : null,
+                  }
+                : null
+            }
+            scenes={scenes}
             glide={playing ? STEP_MS : 0}
             onReady={onReady}
             layers={layers}
@@ -292,17 +288,37 @@ export function App() {
           />
           {/* on a narrow map the attribution wraps onto two lines: leave it room */}
           <div
-            className={`absolute inset-x-3 z-10 mx-auto max-w-md ${drawer ? "bottom-[calc(50dvh+0.75rem)]" : "bottom-16 @2xl:bottom-10"}`}
+            className={`absolute inset-x-3 z-10 mx-auto max-w-md ${drawer ? "bottom-[calc(50dvh+0.75rem)]" : "bottom-16"}`}
           >
+            {/* What the map shows: one choice, the same switches as in the sidebar */}
+            <ToggleGroup
+              type="single"
+              aria-label="Map layer"
+              value={viewOf(layers)}
+              onValueChange={(v) => v && setLayers((s) => withView(s, v))}
+              spacing={1}
+              className="mx-auto mb-2 w-fit max-w-full overflow-x-auto rounded-xl border bg-background/95 p-1 shadow-md"
+            >
+              {VIEWS.map((v) => (
+                <ToggleGroupItem
+                  key={v.id}
+                  value={v.id}
+                  aria-label={v.label}
+                  className="px-2 transition-colors data-[state=on]:bg-primary data-[state=on]:text-primary-foreground @md:px-2.5 pointer-coarse:h-10"
+                >
+                  <span className="@md:hidden">{v.short}</span>
+                  <span className="hidden @md:inline">{v.label}</span>
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
             <TimeSlider
               date={date}
               onChange={setDate}
               step={step}
               stepMs={STEP_MS}
               ready={ready}
-              scene={scene}
-              blend={framed && selected && layers.scene.on ? blend : undefined}
-              sceneDates={layers.scene.on ? scenes.map((s) => s.date) : []}
+              blend={blend}
+              sceneDates={layers.scene.on ? sceneDates : []}
               vegetation={layers.ndvi.on}
               onPlaying={setPlaying}
             />

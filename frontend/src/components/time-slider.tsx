@@ -45,9 +45,7 @@ type Props = {
   stepMs: number
   /** The next frame of every visible layer has loaded. */
   ready: boolean
-  /** The live field image shown: its date, null when none is clear enough, undefined when not applicable. */
-  scene: { date: string } | null | undefined
-  /** Saved field images blended for the day (demo years): which two, and how far between them. */
+  /** The Sentinel-2 passes blended for the day: which two, and how far between them. Null when none is close enough, undefined when not shown. */
   blend?: { a: string; b: string | null; t: number } | null
   /** Clear Sentinel-2 passes over the selected field, drawn as ticks on the track. */
   sceneDates: string[]
@@ -64,7 +62,6 @@ export function TimeSlider({
   step,
   stepMs,
   ready,
-  scene,
   blend,
   sceneDates,
   vegetation,
@@ -120,19 +117,10 @@ export function TimeSlider({
           {blend !== undefined && (
             <div className="text-xs text-pretty text-muted-foreground tabular-nums">
               {!blend
-                ? "No clear field image in the 30 days before"
+                ? "No clear satellite image in the 30 days before"
                 : blend.b && blend.t > 0
-                  ? `Field image: ${formatDay(blend.a)}, fading into ${formatDay(blend.b)} (Sentinel-2)`
-                  : `Field image from ${formatDay(blend.a)} (Sentinel-2)`}
-            </div>
-          )}
-          {scene !== undefined && (
-            <div className="text-xs text-pretty text-muted-foreground tabular-nums">
-              {scene
-                ? scene.date === shown
-                  ? "Field image from this day (Sentinel-2)"
-                  : `Field image from ${formatDate(scene.date)} (Sentinel-2)`
-                : "No clear field image in the 30 days before"}
+                  ? `Satellite image: ${formatDay(blend.a)}, fading into ${formatDay(blend.b)} (Sentinel-2)`
+                  : `Satellite image from ${formatDay(blend.a)} (Sentinel-2)`}
             </div>
           )}
           {vegetation && (

@@ -6,7 +6,7 @@ Field Shift looks at a crop field in the northern Kazakhstan grain belt the way 
 
 ## What it does
 
-- **Map.** NASA vegetation (MODIS NDVI), true colour, soil moisture (SMAP) and rainfall (GPM IMERG) layers with a time slider back to 2001, plus a yearly Sentinel-2 mosaic for field detail.
+- **Map.** Pick what the map shows: NASA vegetation (MODIS NDVI), true colour, soil moisture (SMAP) or rainfall (GPM IMERG), with a time slider back to 2001 and a yearly Sentinel-2 mosaic underneath. Zoomed in on a field, the whole view shows Sentinel-2 as it was on each clear pass, fading from one pass to the next as the days go by.
 - **Fields.** Three demo fields traced on satellite imagery, one per region. Draw your own field to analyse it live (needs the analysis service running).
 - **Strategies.** Three rotation options scored from a crop catalogue against the field's stress profile. Sliders for the farmer's priorities (save water, build soil, income now) and a "drier and hotter" what-if change the ranking in the browser.
 - **Seasons.** Greenness through each season since 2018 (Sentinel-2) against the field's own normal, with findings such as a peak well below normal or bare soil in mid-season, and the NASA MODIS record since 2000.
@@ -48,7 +48,6 @@ npm run dev                               # http://localhost:5173, /api is proxi
 One container for both: `docker build -t fieldshift . && docker run -p 8088:8080 fieldshift`.
 
 Rebuild the demo fields from live data: `cd backend && uv run python scripts/build_presets.py`.
-Then save their field images for the animation (every clear image since 2018, about 26 MB): `uv run python scripts/build_frames.py`.
 
 No API keys are needed for anything.
 
