@@ -85,7 +85,7 @@ def validate(geometry):
     xs, ys = zip(*ring)
     w, s, e, n = K.KZ_BOX
     if not (w <= min(xs) and max(xs) <= e and s <= min(ys) and max(ys) <= n):
-        raise ValueError("Field Shift only covers Kazakhstan. Draw the field inside Kazakhstan.")
+        raise ValueError("Croppy only covers Kazakhstan. Draw the field inside Kazakhstan.")
     if max(xs) - min(xs) > K.MAX_SPAN_DEG[0] or max(ys) - min(ys) > K.MAX_SPAN_DEG[1]:   # a strip of few hectares can cross dozens of satellite tiles
         raise ValueError("The outline spans more than about 30 km. Outline a single field.")
     ha = area_ha(ring)

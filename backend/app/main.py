@@ -1,4 +1,4 @@
-"""Field Shift API. One process serves /api/* and, when it has been built, the frontend."""
+"""Croppy API. One process serves /api/* and, when it has been built, the frontend."""
 import asyncio
 import datetime as dt
 import json
@@ -20,7 +20,7 @@ from .analyse import analyse, field_hash, validate
 from .climate import write_json
 from .series import UpstreamError
 
-app = FastAPI(title="Field Shift API", docs_url=None, redoc_url=None, openapi_url=None)   # a public URL needs no request form
+app = FastAPI(title="Croppy API", docs_url=None, redoc_url=None, openapi_url=None)   # a public URL needs no request form
 _inflight = {}                         # field id -> the task building it (one worker, one event loop: a plain dict is enough)
 _recent = {}                           # connection -> start times of the new builds it asked for in the last hour
 

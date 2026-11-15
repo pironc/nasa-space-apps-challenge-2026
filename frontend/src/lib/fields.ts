@@ -24,6 +24,7 @@ export type SavedField = {
 
 export const presetToField = (p: Preset): SavedField => ({ ...p, createdAt: "", preset: p })
 
+// The app was called Field Shift: the key keeps that name so fields saved before the rename stay.
 const KEY = "fieldshift.fields.v1"
 
 function load(): SavedField[] {

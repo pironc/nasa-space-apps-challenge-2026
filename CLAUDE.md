@@ -1,11 +1,11 @@
-# CLAUDE.md — NASA Space Apps Challenge 2026: Field Shift
+# CLAUDE.md — Croppy, NASA Space Apps Challenge 2026 (challenge: Field Shift)
 
 ## 1. Identity and status
 - **Repo:** `https://github.com/pironc/nasa-space-apps-challenge-2026.git`
 - **Event:** NASA Space Apps Challenge 2026, **Universal Event** (online; the team moved from the Singapore event on 14 Nov). Deadline per the event page, read on 14 Nov: "November 15 at 11:59 PM local time, according to the team's creator". The creator's clock is this machine's (UTC+5), so plan for **Sunday 15 Nov 23:59 on this machine** and confirm the time shown on the team page. Saving the project page after the deadline voids eligibility.
 - **Challenge:** *Field Shift: Adapting Farms with NASA Data*. Official text: `docs/research/space-apps-rules/field_shift_official.md`.
-- **Product:** a no-login web app where a farmer or agronomist watches crop fields in the northern Kazakhstan grain belt on a map, scrubs back through time, gets stress alerts on the fields they saved, and compares three crop-rotation strategies with evidence, data gaps and local-review risks.
-- **Status (14 Nov, evening):** the app works end to end. Three demo fields are precomputed from live data, the analysis API analyses a drawn field in 20 to 45 s, and one container serves everything (`docker build -t fieldshift .`). Not done: deployment, the deck, a real-phone check. Research and the independent plan review are in `docs/research/`. Where the notes in sections 8 and 9 and the code disagree, **the code and `backend/app/constants.py` are current**; the review in `docs/research/plan-review/README.md` explains why the rules changed.
+- **Product:** **Croppy** (renamed from "Field Shift" on 15 Nov; the challenge keeps its name), a no-login web app where a farmer or agronomist watches crop fields in the northern Kazakhstan grain belt on a map, scrubs back through time, gets stress alerts on the fields they saved, and compares three crop-rotation strategies with evidence, data gaps and local-review risks.
+- **Status (14 Nov, evening):** the app works end to end. Three demo fields are precomputed from live data, the analysis API analyses a drawn field in 20 to 45 s, and one container serves everything (`docker build -t croppy .`). Not done: deployment, the deck, a real-phone check. Research and the independent plan review are in `docs/research/`. Where the notes in sections 8 and 9 and the code disagree, **the code and `backend/app/constants.py` are current**; the review in `docs/research/plan-review/README.md` explains why the rules changed.
 - **Checks:** `cd backend && uv run python tests/selfcheck.py`; `cd frontend && npm run build && node scripts/check-rotation.ts && npm run check:data`. Rebuild demo fields with `cd backend && uv run python scripts/build_presets.py`. The map shows the latest clear Sentinel-2 pass of the selected field over the whole view, in natural colour or as NDVI, as live Planetary Computer tiles with a hard cut between dates; `frontend/public/sw.js` caches them. True colour and rain layers were dropped on 15 Nov (little use for a rotation decision; the Climate tab covers rain).
 
 ## 2. Working rules
@@ -180,7 +180,7 @@ Still open:
 - [ ] Install the `gcloud` CLI (not on this machine yet), log in, create a project, enable Cloud Run, Cloud Build and Artifact Registry
 - [ ] `Dockerfile`: build the frontend, serve it from FastAPI, presets in the image
 - [x] `Dockerfile` builds and runs locally (health, app, preset and a live analysis all answer)
-- [ ] `gcloud run deploy fieldshift --source . --region europe-west4 --allow-unauthenticated --min-instances 1 --max-instances 1 --timeout 600 --memory 1Gi`
+- [ ] `gcloud run deploy croppy --source . --region europe-west4 --allow-unauthenticated --min-instances 1 --max-instances 1 --timeout 600 --memory 1Gi`
 - [ ] Use the `*.run.app` URL; no custom domain (new domains can trip judges' web filters)
 - [ ] Judging runs to 17 December (finalists) and 26 January 2027 (winners): keep the app and any LLM key alive that long, or rely on presets
 - [ ] Smoke test from a phone: presets load instantly, drawing a field works, alerts and cards render

@@ -1,7 +1,7 @@
 [project]
-name = "fieldshift-backend"
+name = "croppy-backend"
 version = "0.1.0"
-description = "Field Shift analysis API: turns a field outline into satellite and climate findings for crop-rotation decisions (NASA Space Apps Challenge 2026). Built with AI assistance (Claude Code)."
+description = "Croppy analysis API: turns a field outline into satellite and climate findings for crop-rotation decisions (NASA Space Apps Challenge 2026). Built with AI assistance (Claude Code)."
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

@@ -9,7 +9,7 @@ from pathlib import Path
 DATA_DIR = Path(os.environ.get("DATA_DIR") or Path(__file__).resolve().parents[1] / ".data")  # cache root
 SCHEMA = 1                      # FieldAnalysis.schema; a cached file with another value is rebuilt
 RULES = 5                       # version of the analysis rules, part of every field's cache key: raise it when a rule changes
-USER_AGENT = "fieldshift/0.1"   # client name sent to outside services (never a person or a repository)
+USER_AGENT = "croppy/0.1"     # client name sent to outside services (never a person or a repository)
 CONCURRENCY = 40                # one global limit on calls to the Planetary Computer, across all users
 RETRIES = 3                     # tries per upstream call on HTTP 429/502/503/504 and timeouts
 MAX_FAILED_SHARE = 0.10         # more than this share of scenes unanswered: report the upstream as down
