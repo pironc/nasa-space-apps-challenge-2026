@@ -1,3 +1,6 @@
 .DS_Store
 .env
 *.local
+
+# design tool working files and a private session log, kept on this machine only
+opendesigner/
