@@ -182,6 +182,26 @@ export function AppSidebar({
                             }
                           />
                         </div>
+                        {l.ramp && (
+                          <figure className="flex flex-col gap-1">
+                            <div className="flex h-3 overflow-hidden rounded-sm border">
+                              {l.ramp.map((c) => (
+                                <span
+                                  key={c}
+                                  className="flex-1"
+                                  style={{ background: c }}
+                                />
+                              ))}
+                            </div>
+                            <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
+                              <span>0</span>
+                              <span>0.9</span>
+                            </div>
+                            <figcaption className="text-xs text-muted-foreground">
+                              {l.scale}
+                            </figcaption>
+                          </figure>
+                        )}
                         {l.legend && (
                           <figure className="flex flex-col gap-1">
                             <img

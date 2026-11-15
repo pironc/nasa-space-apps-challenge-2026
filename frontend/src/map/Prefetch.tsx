@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react"
 import { useMap, type MapRef } from "@/components/ui/map"
+import type { Pass } from "@/lib/analysis"
 import {
   addDays,
   LAYERS,
   periodDates,
+  greennessTiles,
   sceneTiles,
   type LayerState,
 } from "@/lib/layers"
@@ -63,7 +65,7 @@ export function Prefetch({
   date: string
   layers: LayerState
   /** Clear passes over the selected field: date and Sentinel-2 item id. */
-  scenes: { date: string; item: string }[]
+  scenes: Pass[]
 }) {
   const { map, isLoaded } = useMap()
   const live = useRef({ date, layers, scenes })
@@ -88,18 +90,21 @@ export function Prefetch({
           .replace("{z}", String(t.z))
           .replace("{x}", String(t.x))
           .replace("{y}", String(t.y))
-      if (layers.scene.on && zoom >= SCENE_MIN_ZOOM) {
+      if ((layers.scene.on || layers.greenness.on) && zoom >= SCENE_MIN_ZOOM) {
         const tiles = visibleTiles(map, 15)
         const year = date.slice(0, 4)
         for (const s of scenes
           .filter((s) => s.date.startsWith(year))
           .sort((p, q) => near(p.date, q.date))
           .slice(0, SCENES_AHEAD))
-          for (const t of tiles) urls.push(fill(sceneTiles(s.item), t))
+          for (const t of tiles) {
+            if (layers.scene.on) urls.push(fill(sceneTiles(s.item), t))
+            if (layers.greenness.on)
+              urls.push(fill(greennessTiles(s.item, s.offset), t))
+          }
       }
       for (const l of LAYERS) {
-        if (!layers[l.id].on || l.id === "scene" || l.id === "satellite")
-          continue
+        if (!layers[l.id].on || !(l.period || l.daily)) continue
         const y = +date.slice(0, 4)
         const days = l.period
           ? // the whole year, and the composites either side of New Year
