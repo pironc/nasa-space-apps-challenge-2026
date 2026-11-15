@@ -30,7 +30,8 @@ jobs:
       - run: npm run build
         working-directory: frontend
         env:
-          VITE_BASE: /${{ github.event.repository.name }}/
+          # relative paths: the same build works under /<repo>/ and at the root of a custom domain
+          VITE_BASE: ./
       - uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist
