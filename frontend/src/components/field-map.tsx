@@ -28,7 +28,6 @@ import {
   type RotationId,
   type SavedField,
 } from "@/lib/fields"
-import { framedYears, type Blend, type Frames } from "@/lib/frames"
 import {
   BASEMAP,
   LAYERS,
@@ -36,7 +35,6 @@ import {
   sceneTiles,
   type LayerState,
 } from "@/lib/layers"
-import { FieldFrames } from "@/map/FieldFrames"
 import { Prefetch } from "@/map/Prefetch"
 import { RasterLayer } from "@/map/RasterLayer"
 import { useFieldDraw } from "@/map/useFieldDraw"
@@ -139,12 +137,6 @@ function FitToField({
   }, [map, isLoaded, id, layout])
   return null
 }
-
-/** A bounding box grown by `by` degrees on each side, as [west, south, east, north]. */
-const padded = (
-  [[w, s], [e, n]]: [[number, number], [number, number]],
-  by: number
-): [number, number, number, number] => [w - by, s - by, e + by, n + by]
 
 type NewField = Pick<SavedField, "name" | "rotation" | "areaHa" | "geometry">
 
@@ -295,12 +287,10 @@ type Props = {
   date: string
   /** The dates play will step to next: their frames load in the background. */
   nextDates: string[]
-  /** Sentinel-2 scene ids of the field image: the one to show, then the next ones to preload. */
-  scene: string | null
-  nextScenes: string[]
-  /** Saved images of the selected demo field, and how to blend them for the day. */
-  frames: Frames | null
-  blend: Blend | null
+  /** Sentinel-2 scenes for the day: pass `a`, pass `b` faded over it at `t`, and the pass after, loading ahead. */
+  scene: { a: string; b: string | null; t: number; next: string | null } | null
+  /** Every clear pass over the selected field, fetched ahead for the area in view. */
+  scenes: { date: string; item: string }[]
   /** Opacity changes glide over this many ms: the length of one play step. */
   glide: number
   onReady: (id: string, ready: boolean) => void
@@ -316,9 +306,7 @@ export function FieldMap({
   date,
   nextDates,
   scene,
-  nextScenes,
-  frames,
-  blend,
+  scenes,
   glide,
   onReady,
   layers,
@@ -388,34 +376,23 @@ export function FieldMap({
           />
         )
       })}
-      {/* The selected field as Sentinel-2 saw it: saved images, blended day by day, for the demo years;
-          otherwise the nearest clear image, rendered live around the field. */}
-      {selectedField && frames && framedYears(frames).has(year) ? (
-        <FieldFrames
-          fieldId={selectedField.id}
-          frames={frames}
-          year={year}
-          blend={blend}
-          visible={layers.scene.on}
-          opacity={layers.scene.opacity}
+      {/* The whole view as Sentinel-2 saw it on the clear passes over the selected field, fading
+          from one pass to the next as the days go by. Tiles are rendered live by the Planetary Computer. */}
+      {selectedField && (
+        <RasterLayer
+          id="scene"
+          tiles={scene && sceneTiles(scene.a)}
+          blendTo={scene?.b ? sceneTiles(scene.b) : null}
+          blend={scene?.t ?? 0}
+          next={scene?.next ? [sceneTiles(scene.next)] : []}
           glide={glide}
+          visible={layers.scene.on && !!scene}
+          opacity={layers.scene.opacity}
+          maxzoom={15}
+          minzoom={10}
+          attribution={LAYERS.find((l) => l.id === "scene")!.attribution}
+          onReady={onReady}
         />
-      ) : (
-        selectedField && (
-          <RasterLayer
-            key={selectedField.id}
-            id="scene"
-            tiles={scene && sceneTiles(scene)}
-            next={nextScenes.map(sceneTiles)}
-            visible={layers.scene.on && !!scene}
-            opacity={layers.scene.opacity}
-            maxzoom={15}
-            minzoom={10}
-            bounds={padded(bounds(selectedField.geometry), 0.08)}
-            attribution={LAYERS.find((l) => l.id === "scene")!.attribution}
-            onReady={onReady}
-          />
-        )
       )}
       <MapGeoJSON
         data={data}
@@ -427,7 +404,7 @@ export function FieldMap({
       />
       <FieldLabels data={data} />
       <FitToField field={selectedField} layout={layout} />
-      <Prefetch date={date} layers={layers} />
+      <Prefetch date={date} layers={layers} scenes={scenes} />
       <MapControls position="top-right" />
       {/* On a phone the drawer leaves too little map to draw on: starting an outline closes it. */}
       <DrawToolbar

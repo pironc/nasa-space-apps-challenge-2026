@@ -124,9 +124,9 @@ export const LAYERS: MapLayer[] = [
   },
   {
     id: "scene",
-    label: "Field image of the day",
+    label: "Satellite image of the day",
     source: "Sentinel-2, 10 m, when clear",
-    hint: "The selected field as Sentinel-2 saw it on the latest clear pass before this date. Zoom in on a field to see it.",
+    hint: "The area around the selected field as Sentinel-2 saw it, fading from one clear pass over the field to the next. Zoom in to see it.",
     tiles: () => "",
     maxzoom: 15,
     attribution:
@@ -148,10 +148,71 @@ export const sceneTiles = (item: string) =>
     nodata: "0",
   })
 
-/** The sidebar's order: the field image first, then the regional layers, the base mosaic last. */
-export const PANEL_ORDER = [...LAYERS].reverse()
+/** The image to show on a day: one clear pass `a` at full strength, the next pass `b` over it at `t` (0 to 1). */
+export type Blend = { a: string; b: string | null; t: number }
+
+/** No fading across gaps longer than this: the ground can change too much between two passes. */
+const MAX_GAP_DAYS = 30
+
+/**
+ * The passes to show on a day: the latest on or before it, faded towards the next one in proportion
+ * to the days between them. Null when no pass is close enough.
+ */
+export function sceneBlend(dates: string[], day: string): Blend | null {
+  const i = dates.findLastIndex((d) => d <= day)
+  if (i < 0) return null
+  const a = dates[i]
+  const next = dates[i + 1] ?? null
+  const span = next ? (Date.parse(next) - Date.parse(a)) / DAY : Infinity
+  const since = (Date.parse(day) - Date.parse(a)) / DAY
+  if (span > MAX_GAP_DAYS)
+    return since <= MAX_GAP_DAYS ? { a, b: null, t: 0 } : null
+  return { a, b: next, t: since / span }
+}
+
+/** The map's main view, picked on the map: one regional NASA layer (or none) over the mosaic, the satellite image of the day closer in. */
+export const VIEWS = [
+  { id: "imagery", label: "Imagery", short: "Imagery", layer: null },
+  { id: "vegetation", label: "Vegetation", short: "Vegetation", layer: "ndvi" },
+  {
+    id: "truecolor",
+    label: "True colour",
+    short: "Colour",
+    layer: "truecolor",
+  },
+  { id: "soil", label: "Soil moisture", short: "Soil", layer: "soil" },
+  { id: "rain", label: "Rain", short: "Rain", layer: "rain" },
+] as const satisfies {
+  id: string
+  label: string
+  /** For a phone-width map. */
+  short: string
+  layer: LayerId | null
+}[]
+const REGIONAL: LayerId[] = ["ndvi", "truecolor", "soil", "rain"]
+
+/** The view the layer switches add up to, or "" when they match none (set by hand in the sidebar). */
+export const viewOf = (s: LayerState) => {
+  const on = REGIONAL.filter((id) => s[id].on)
+  return (
+    (on.length <= 1 && VIEWS.find((v) => v.layer === (on[0] ?? null))?.id) || ""
+  )
+}
+
+/** Layer switches for a view: the mosaic and the image of the day stay on, one regional layer at most. */
+export const withView = (s: LayerState, view: string): LayerState => {
+  const layer = VIEWS.find((v) => v.id === view)?.layer ?? null
+  const next = { ...s }
+  for (const id of REGIONAL) next[id] = { ...s[id], on: id === layer }
+  next.satellite = { ...s.satellite, on: true }
+  next.scene = { ...s.scene, on: true }
+  return next
+}
 
 export type LayerState = Record<LayerId, { on: boolean; opacity: number }>
+
+/** The sidebar's order: the field image first, then the regional layers, the base mosaic last. */
+export const PANEL_ORDER = [...LAYERS].reverse()
 
 export const defaultLayerState = () =>
   Object.fromEntries(
@@ -287,5 +348,23 @@ export function selfCheck() {
     throw new Error("clampDay")
   if (!sceneTiles("X").includes("item=X") || sceneTiles("X").includes("+"))
     throw new Error("sceneTiles")
+  const dates = ["2021-07-10", "2021-07-20", "2021-09-30"]
+  const at = (d: string) => JSON.stringify(sceneBlend(dates, d))
+  if (at("2021-07-01") !== "null") throw new Error("before the first pass")
+  if (
+    at("2021-07-15") !==
+    JSON.stringify({ a: "2021-07-10", b: "2021-07-20", t: 0.5 })
+  )
+    throw new Error("halfway blend")
+  if (at("2021-07-25") !== JSON.stringify({ a: "2021-07-20", b: null, t: 0 }))
+    throw new Error("no blend over a long gap")
+  if (at("2021-09-01") !== "null") throw new Error("too old to show")
+  const base = defaultLayerState()
+  if (viewOf(base) !== "vegetation") throw new Error("default view")
+  const rain = withView(base, "rain")
+  if (viewOf(rain) !== "rain" || rain.ndvi.on || !rain.scene.on)
+    throw new Error("withView")
+  if (viewOf({ ...rain, ndvi: { on: true, opacity: 1 } }) !== "")
+    throw new Error("mixed layers match no view")
   console.log("layers self-check passed")
 }
