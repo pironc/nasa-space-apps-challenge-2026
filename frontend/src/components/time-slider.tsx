@@ -45,14 +45,12 @@ type Props = {
   stepMs: number
   /** The next frame of every visible layer has loaded. */
   ready: boolean
-  /** The Sentinel-2 passes blended for the day: which two, and how far between them. Null when none is close enough, undefined when not shown. */
-  blend?: { a: string; b: string | null; t: number } | null
+  /** The Sentinel-2 pass shown: null when none is recent enough, undefined when the layer is not shown. */
+  pass?: { date: string } | null
   /** Clear Sentinel-2 passes over the selected field, drawn as ticks on the track. */
   sceneDates: string[]
   /** The vegetation layer is on, so its composite is worth naming. */
   vegetation: boolean
-  /** Play started or stopped: the map glides between days while playing, and jumps while scrubbing. */
-  onPlaying?: (playing: boolean) => void
 }
 
 /** Moves through one year day by day; each layer shows what exists for that day. */
@@ -62,10 +60,9 @@ export function TimeSlider({
   step,
   stepMs,
   ready,
-  blend,
+  pass,
   sceneDates,
   vegetation,
-  onPlaying,
 }: Props) {
   const year = +date.slice(0, 4)
   const days = daysIn(year)
@@ -94,8 +91,6 @@ export function TimeSlider({
     return () => clearInterval(t)
   }, [playing])
 
-  useEffect(() => onPlaying?.(playing), [playing, onPlaying])
-
   const ticks = sceneDates.filter((d) => d.startsWith(String(year)))
 
   return (
@@ -114,13 +109,11 @@ export function TimeSlider({
           <div className="text-sm font-medium tabular-nums">
             {formatDate(shown)}
           </div>
-          {blend !== undefined && (
+          {pass !== undefined && (
             <div className="text-xs text-pretty text-muted-foreground tabular-nums">
-              {!blend
-                ? "No clear satellite image in the 30 days before"
-                : blend.b && blend.t > 0
-                  ? `Satellite image: ${formatDay(blend.a)}, fading into ${formatDay(blend.b)} (Sentinel-2)`
-                  : `Satellite image from ${formatDay(blend.a)} (Sentinel-2)`}
+              {pass
+                ? `Satellite image from ${formatDay(pass.date)} (Sentinel-2)`
+                : "No clear satellite image in the 30 days before"}
             </div>
           )}
           {vegetation && (
