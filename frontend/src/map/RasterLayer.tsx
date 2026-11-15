@@ -19,8 +19,6 @@ type Props = {
   maxzoom: number
   /** No tiles below this zoom. */
   minzoom?: number
-  /** The layer hides from this zoom in. */
-  maxView?: number
   bounds?: [number, number, number, number]
   attribution?: string
   /** Whether the first `next` frame has finished loading, for play to wait on. */
@@ -47,7 +45,6 @@ export function RasterLayer({
   opacity,
   maxzoom,
   minzoom,
-  maxView,
   bounds,
   attribution,
   onReady,
@@ -79,7 +76,6 @@ export function RasterLayer({
           type: "raster",
           source: slot(i),
           ...(minzoom !== undefined && { minzoom }),
-          ...(maxView !== undefined && { maxzoom: maxView }),
           layout: { visibility: "none" },
           paint: {
             "raster-fade-duration": 150,

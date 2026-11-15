@@ -347,12 +347,11 @@ export function FieldMap({
           visible: layers[l.id].on && year >= l.since,
           opacity: layers[l.id].opacity,
           maxzoom: l.maxzoom,
-          maxView: l.maxView,
           attribution: l.attribution,
           onReady,
         }
         if (l.period) {
-          // fades from one 16-day period to the next as the days pass
+          // fades from one vegetation composite to the next as the days pass
           const p = periodBlend(date)
           return (
             <RasterLayer
