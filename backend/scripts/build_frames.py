@@ -1,4 +1,4 @@
-"""Save the clear Sentinel-2 images of each demo field for its demo years, so the map can animate the field
+"""Save the clear Sentinel-2 images of each demo field for every season since 2018 (full size for its demo years), so the map can animate the field
 day by day from local files instead of asking the tile server for every frame.
 
 Run after build_presets.py (it reads the scene lists from the preset files):
@@ -20,7 +20,9 @@ ROOT = Path(__file__).resolve().parents[2]
 PRESETS = ROOT / "frontend" / "public" / "presets"
 OUT = ROOT / "frontend" / "public" / "frames"
 BBOX_URL = "https://planetarycomputer.microsoft.com/api/data/v1/item/bbox/{w},{s},{e},{n}/{width}x{height}.jpg"
-WIDTH = 640                  # px across; about 7 to 10 m per pixel over these fields
+WIDTH = 640                  # px across for the demo years; about 7 to 10 m per pixel over these fields
+OTHER_WIDTH = 512            # the other years, a little smaller to keep the download down
+FIRST_YEAR = 2018            # usable Sentinel-2 seasons start here
 PAD = 0.6                    # land shown around the field, as a share of the field's own size on each side
 MIN_PAD_DEG = 0.015          # at least about 1 to 1.6 km of context
 CONCURRENCY = 8
@@ -34,10 +36,10 @@ def frame_bounds(ring):
     return [round(min(xs) - px, 5), round(min(ys) - py, 5), round(max(xs) + px, 5), round(max(ys) + py, 5)]
 
 
-def height_for(b):
+def height_for(b, width=WIDTH):
     """Pixel height that keeps the picture undistorted on a Web Mercator map."""
     merc = lambda lat: math.log(math.tan(math.pi / 4 + math.radians(lat) / 2))
-    return max(1, round(WIDTH * (merc(b[3]) - merc(b[1])) / math.radians(b[2] - b[0])))
+    return max(1, round(width * (merc(b[3]) - merc(b[1])) / math.radians(b[2] - b[0])))
 
 
 async def fetch(c, sem, url, path):
@@ -63,9 +65,8 @@ async def main():
         for p in presets:
             analysis = json.loads((PRESETS / f"{p['id']}.json").read_text())
             b = frame_bounds(p["geometry"]["coordinates"][0])
-            h = height_for(b)
-            years = {str(y) for y in p["demoYears"]}
-            scenes = [s for s in analysis["scenes"] if s["date"][:4] in years and SEASON[0] <= s["date"][5:] <= SEASON[1]]
+            demo = {str(y) for y in p["demoYears"]}
+            scenes = [s for s in analysis["scenes"] if s["date"][:4] >= str(FIRST_YEAR) and SEASON[0] <= s["date"][5:] <= SEASON[1]]
             folder = OUT / p["id"]
             folder.mkdir(parents=True, exist_ok=True)
             params = urlencode({"collection": "sentinel-2-l2a", "assets": "visual", "asset_bidx": "visual|1,2,3", "nodata": "0"})
@@ -74,13 +75,14 @@ async def main():
                 path = folder / f"{s['date']}.jpg"
                 if path.exists() and path.stat().st_size:
                     return s["date"]
-                url = BBOX_URL.format(w=b[0], s=b[1], e=b[2], n=b[3], width=WIDTH, height=h) + f"?{params}&item={s['item']}"
+                width = WIDTH if s["date"][:4] in demo else OTHER_WIDTH
+                url = BBOX_URL.format(w=b[0], s=b[1], e=b[2], n=b[3], width=width, height=height_for(b, width)) + f"?{params}&item={s['item']}"
                 return s["date"] if await fetch(c, sem, url, path) else None
 
             got = sorted(d for d in await asyncio.gather(*map(one, scenes)) if d)
             (folder / "index.json").write_text(json.dumps({"bounds": b, "frames": [{"date": d, "file": f"{d}.jpg"} for d in got]}, separators=(",", ":")))
             size = sum(f.stat().st_size for f in folder.glob("*.jpg"))
-            print(f"{p['id']}: {len(got)} of {len(scenes)} frames, {WIDTH}x{h} px, {size / 1e6:.1f} MB, years {sorted(years)}")
+            print(f"{p['id']}: {len(got)} of {len(scenes)} frames, {size / 1e6:.1f} MB, {FIRST_YEAR} to {max((d[:4] for d in got), default='-')}")
 
 
 if __name__ == "__main__":
